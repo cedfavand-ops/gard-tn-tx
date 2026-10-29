@@ -75,14 +75,43 @@ def load_dem(grid):
     return np.nan_to_num(dst, nan=0.0)
 
 
+def _extract_geometry(j):
+    """Accepte Feature, FeatureCollection, géométrie nue ou ancien format {'contour': ...}."""
+    if "contour" in j:
+        return j["contour"]
+    if j.get("type") == "FeatureCollection":
+        return j["features"][0]["geometry"]
+    if j.get("type") == "Feature":
+        return j["geometry"]
+    if j.get("type") in ("Polygon", "MultiPolygon"):
+        return j
+    raise KeyError(f"Format de contour inconnu : {list(j)[:5]}")
+
+
+CONTOUR_URLS = [
+    "https://geo.api.gouv.fr/departements/30?fields=nom,code,contour&format=geojson&geometry=contour",
+    "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements/30-gard/departement-30-gard.geojson",
+]
+
+
 def department_mask(grid, cache="data/gard_contour.json"):
     import requests
     from matplotlib.path import Path
     if not os.path.exists(cache):
-        r = requests.get("https://geo.api.gouv.fr/departements/30?fields=nom,contour", timeout=60)
-        r.raise_for_status()
-        with open(cache, "w") as f:
-            json.dump(r.json()["contour"], f)
+        err = None
+        for url in CONTOUR_URLS:
+            try:
+                r = requests.get(url, timeout=60)
+                r.raise_for_status()
+                geom = _extract_geometry(r.json())
+                with open(cache, "w") as f:
+                    json.dump(geom, f)
+                break
+            except Exception as e:
+                err = f"{url}: {e}"
+                print("Contour indisponible ->", err)
+        else:
+            raise RuntimeError(f"Impossible d'obtenir le contour du Gard ({err})")
     g = json.load(open(cache))
     polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
     mask = np.zeros((grid.ny, grid.nx), bool)
