@@ -41,14 +41,14 @@ def value_png(a):
 def write_all(out, grid, tn, tx, mask, icon, info, D):
     scale = {}
     for name, a in (("tn", tn), ("tx", tx)):
-        v = a[np.isfinite(a)]
-        vmin, vmax = np.floor(np.percentile(v, 1)), np.ceil(np.percentile(v, 99))
-        if vmax - vmin < 6:
-            vmax = vmin + 6
         am = to_mercator(a, grid)
-        Image.fromarray(colorize(am, vmin, vmax), "RGBA").save(f"{out}/{name}.png", optimize=True)
+        vmin = np.floor(np.nanmin(am) * 10) / 10          # extrêmes réels de la carte (0,1 °C)
+        vmax = np.ceil(np.nanmax(am) * 10) / 10
+        band = min(C.BAND, (vmax - vmin) / 4)
+        lo, hi = vmin + band, vmax - band                 # début/fin du dégradé arc-en-ciel
+        Image.fromarray(colorize(am, lo, hi), "RGBA").save(f"{out}/{name}.png", optimize=True)
         Image.fromarray(value_png(am), "RGB").save(f"{out}/{name}_val.png", optimize=True)
-        scale[name] = (float(vmin), float(vmax))
+        scale[name] = (float(vmin), float(vmax), float(lo), float(hi))
         print(f"[RENDU] {name}: {isolines(a, grid, f'{out}/{name}_iso.geojson')} isolignes", flush=True)
     iso = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")
     from datetime import timedelta
@@ -59,10 +59,10 @@ def write_all(out, grid, tn, tx, mask, icon, info, D):
         wind=None if np.isnan(info["wind"]) else round(info["wind"], 1),
         cloud=None if np.isnan(info["cloud"]) else round(info["cloud"]),
         ecostress=C.ECOSTRESS_LABEL, ecostress_cover=round(info["ecostress_cover"], 2),
-        tn=dict(vmin=scale["tn"][0], vmax=scale["tn"][1],
+        tn=dict(vmin=scale["tn"][0], vmax=scale["tn"][1], lo=scale["tn"][2], hi=scale["tn"][3],
                 start=iso(D + timedelta(hours=C.TN_WINDOW[0])), end=iso(D + timedelta(hours=C.TN_WINDOW[1])), last=iso(info["tn_end"]),
                 truncated=info["tn_truncated"]),
-        tx=dict(vmin=scale["tx"][0], vmax=scale["tx"][1],
+        tx=dict(vmin=scale["tx"][0], vmax=scale["tx"][1], lo=scale["tx"][2], hi=scale["tx"][3],
                 start=iso(D + timedelta(hours=C.TX_WINDOW[0])), end=iso(D + timedelta(hours=C.TX_WINDOW[1])), last=iso(info["tx_end"]),
                 truncated=info["tx_truncated"]),
         stops=[[p, list(c)] for p, c in C.STOPS],
