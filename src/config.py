@@ -5,8 +5,8 @@ BBOX = (3.20, 43.40, 4.90, 44.50)
 LAT_REF = 44.0
 
 # --- Fenêtres temporelles, en heures depuis 00:00 UTC du jour J (jour de la prévision)
-TN_WINDOW = (18, 42)    # J 18:00 -> J+1 18:00
-TX_WINDOW = (30, 42)    # J+1 06:00 -> J+1 18:00 (le run ICON-CH1 s'arrête à +33 h : fenêtre parfois tronquée)
+TN_WINDOW = (18, 42)    # J 18:00 -> J+1 18:00 UTC
+TX_WINDOW = (30, 54)    # J+1 06:00 -> J+2 06:00 UTC (souvent tronquée par l'horizon du run : 33 h, 45 h pour le run de 03 UTC)
 NIGHT_WINDOW = (20, 29) # J 20:00 -> J+1 05:00 : heures utilisées pour l'indice d'inversion
 
 # --- Descente d'échelle
