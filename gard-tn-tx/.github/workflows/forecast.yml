@@ -1,1 +1,56 @@
+name: Prévision Tn/Tx Gard
+
+on:
+  schedule:
+    - cron: "20 14 * * *"      # 14:20 UTC chaque jour : le run ICON-CH1 de 12 UTC est normalement disponible
+  workflow_dispatch:
+    inputs:
+      res:
+        description: "Résolution (150 ou 70 m)"
+        default: "150"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Bibliothèque ecCodes (lecture GRIB)
+        run: sudo apt-get update && sudo apt-get install -y libeccodes-dev
+      - run: pip install -r requirements.txt
+      - name: Cache des données statiques (MNT, masque, ECOSTRESS)
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/static_*.npz
+            data/gard_contour.json
+          key: static-${{ hashFiles('data/ecostress/*.tif', 'src/static.py', 'src/config.py') }}-${{ inputs.res || '150' }}
+      - name: Calcul des cartes
+        run: python -m src.run --res ${{ inputs.res || '150' }} --out site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
 
