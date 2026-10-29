@@ -60,7 +60,8 @@ function setMode(m) {
   const [w, s, e, n] = meta.bounds, sc = meta[m];
   if (overlay) map.removeLayer(overlay);
   overlay = L.imageOverlay(m + '.png?' + meta.generated, [[s, w], [n, e]], {opacity: +$('op').value}).addTo(map);
-  $('lo').textContent = sc.vmin + ' °C'; $('hi').textContent = sc.vmax + ' °C';
+  $('lo').textContent = sc.vmin.toFixed(1) + ' °C'; $('hi').textContent = sc.vmax.toFixed(1) + ' °C';
+  $('bar').style.background = barCss(sc);
   vals = null;
   loadIso();
   const img = new Image();
@@ -71,6 +72,15 @@ function setMode(m) {
   };
   img.src = m + '_val.png?' + meta.generated;
   info();
+}
+
+function barCss(sc) {
+  const rng = sc.vmax - sc.vmin, lo = (sc.lo - sc.vmin) / rng * 100, hi = (sc.hi - sc.vmin) / rng * 100;
+  const rgb = c => `rgb(${c.join(',')})`, S = meta.stops;
+  const st = [`${rgb(S[0][1])} 0%`, `${rgb(S[0][1])} ${lo}%`];
+  S.forEach(s => st.push(`${rgb(s[1])} ${lo + (hi - lo) * s[0]}%`));
+  st.push(`${rgb(S[S.length - 1][1])} 100%`);
+  return 'linear-gradient(to right,' + st.join(',') + ')';
 }
 
 function loadIso() {
@@ -139,8 +149,6 @@ $('b-tx').onclick = () => meta && setMode('tx');
 
 fetch('meta.json?' + Date.now()).then(r => r.json()).then(m => {
   meta = m;
-  $('bar').style.background = 'linear-gradient(to right,' +
-    m.stops.map(s => `rgb(${s[1].join(',')}) ${s[0] * 100}%`).join(',') + ')';
   setMode('tn');
 }).catch(() => $('info').textContent = 'Prévision indisponible.');
 </script>
