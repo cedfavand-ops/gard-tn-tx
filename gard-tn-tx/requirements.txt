@@ -1,0 +1,8 @@
+numpy
+scipy
+Pillow
+tifffile
+requests
+matplotlib
+rasterio
+meteodata-lab
