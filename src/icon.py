@@ -60,18 +60,48 @@ def _request(ogd_api, var, run, lead_h):
     return ogd_api.Request(**kw)
 
 
+_COORD_NAMES = (("lon", "lat"), ("longitude", "latitude"), ("clon", "clat"), ("CLON", "CLAT"))
+_GRID = {}
+
+
+def _coords(ogd_api, da, run):
+    for a, b in _COORD_NAMES:
+        if a in da.coords and b in da.coords:
+            return np.asarray(da.coords[a].values).ravel(), np.asarray(da.coords[b].values).ravel()
+    if "grid" in _GRID:                       # déjà récupérée par une autre voie
+        return _GRID["grid"]
+    try:                                      # repli : champs de coordonnées des cellules
+        lo = ogd_api.get_from_ogd(_request(ogd_api, "CLON", run, 0))
+        la = ogd_api.get_from_ogd(_request(ogd_api, "CLAT", run, 0))
+        _GRID["grid"] = (np.asarray(lo.values).ravel(), np.asarray(la.values).ravel())
+        return _GRID["grid"]
+    except Exception as e:
+        raise KeyError(f"coordonnées introuvables : dims={da.dims}, coords={list(da.coords)}, "
+                       f"repli CLON/CLAT en échec : {e!r}")
+
+
 def _field(ogd_api, var, run, lead_h):
     da = ogd_api.get_from_ogd(_request(ogd_api, var, run, lead_h))
-    vals = np.asarray(da.values).squeeze().astype(np.float64)
-    lon = np.asarray(da.coords["lon"].values).squeeze().astype(np.float64)
-    lat = np.asarray(da.coords["lat"].values).squeeze().astype(np.float64)
+    vals = np.asarray(da.values).astype(np.float64).ravel()
+    lon, lat = _coords(ogd_api, da, run)
+    lon, lat = lon.astype(np.float64), lat.astype(np.float64)
     if np.nanmax(np.abs(lat)) < 6.3:        # radians -> degrés
         lon, lat = np.degrees(lon), np.degrees(lat)
-    return vals.ravel(), lon.ravel(), lat.ravel()
+    if vals.size != lon.size:
+        raise ValueError(f"{var}: {vals.size} valeurs pour {lon.size} coordonnées (dims={da.dims})")
+    return vals, lon, lat
+
+
+def _import_ogd():
+    try:
+        from meteodatalab import ogd_api          # nom réel du module (paquet PyPI : meteodata-lab)
+    except ImportError:
+        from meteodata_lab import ogd_api         # au cas où une version l'aurait renommé
+    return ogd_api
 
 
 def fetch_icon(now):
-    from meteodata_lab import ogd_api
+    ogd_api = _import_ogd()
     D = day_start(now)
     lon0, lat0, lon1, lat1 = C.BBOX
     t_first = D + timedelta(hours=C.TN_WINDOW[0])
@@ -84,8 +114,9 @@ def fetch_icon(now):
         try:
             lead0 = int((t_first - run).total_seconds() // 3600)
             _field(ogd_api, "T_2M", run, max(lead0, 0))
-        except Exception as e:           # run pas (encore) disponible
+        except Exception as e:           # run pas (encore) disponible, ou erreur de lecture
             last_err = e
+            print(f"Run {run:%Y-%m-%d %H}Z écarté : {e!r}")
             continue
         return _fetch_run(ogd_api, run, D)
     raise RuntimeError(f"Aucun run ICON-CH1 disponible : {last_err}")
@@ -112,6 +143,7 @@ def _fetch_run(ogd_api, run, D):
                 w = _field(ogd_api, "V_10M", run, lead)[0][sel]
                 c = _field(ogd_api, "CLCT", run, lead)[0][sel]
                 wind.append(np.hypot(u, w)); cloud.append(c); ntimes.append(t)
-        except Exception:                # au-delà de l'horizon du run : fenêtre tronquée
+        except Exception as e:           # au-delà de l'horizon du run : fenêtre tronquée
+            print(f"Arrêt à +{lead} h : {e!r}")
             break
     return IconData(run, times, lon, lat, np.array(t2m), np.array(wind), np.array(cloud), ntimes)
