@@ -19,29 +19,36 @@
   .small{font-size:12px;color:#444;margin-top:8px}
   .warn{color:#b3261e;font-weight:600}
   input[type=range]{width:100%}
+  #tip{position:absolute;z-index:1100;pointer-events:none;display:none;background:rgba(20,20,20,.88);color:#fff;
+       padding:3px 8px;border-radius:5px;font-size:13px;white-space:nowrap}
+  .chk{display:block;margin:6px 0}
   @media (max-width:600px){.panel{width:auto;right:10px}}
 </style>
 </head>
 <body>
 <div id="map"></div>
+<div id="tip"></div>
 <div class="panel">
   <h1>Gard – prévision du lendemain</h1>
   <div class="tabs"><button id="b-tn" class="on">Tn (nuit)</button><button id="b-tx">Tx (jour)</button></div>
   <div id="bar"></div>
   <div class="lab"><span id="lo"></span><span id="hi"></span></div>
   <label>Opacité des couleurs<input id="op" type="range" min="0" max="1" step="0.05" value="0.8"></label>
+  <label class="chk"><input type="checkbox" id="iso" checked> Isolignes (fines : 1 °C, épaisses : 5 °C)</label>
   <div class="small" id="info">Chargement…</div>
-  <div class="small">Cliquez sur la carte pour lire la valeur.</div>
+  <div class="small">Survolez la carte (ou touchez-la) pour lire la valeur.</div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const map = L.map('map', {zoomSnap: 0.25}).setView([43.95, 4.05], 9);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
-  {attribution: '© OpenStreetMap, © CARTO', maxZoom: 16}).addTo(map);
-map.createPane('labels'); map.getPane('labels').style.zIndex = 450; map.getPane('labels').style.pointerEvents = 'none';
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {pane: 'labels', maxZoom: 16}).addTo(map);
+const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {attribution: '© les contributeurs d’<a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 18});
+const ign = L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+  {attribution: '© <a href="https://geoservices.ign.fr">IGN</a>', maxZoom: 18});
+osm.addTo(map);
+L.control.layers({'OpenStreetMap': osm, 'Plan IGN': ign}, null, {position: 'topright'}).addTo(map);
 
-let meta, mode = 'tn', overlay = null, vals = null;
+let meta, mode = 'tn', overlay = null, vals = null, isoLayer = null;
 const $ = id => document.getElementById(id);
 const fmt = iso => new Date(iso).toLocaleString('fr-FR', {weekday: 'short', day: '2-digit', month: '2-digit',
   hour: '2-digit', minute: '2-digit', timeZone: 'UTC'}) + ' UTC';
@@ -55,6 +62,7 @@ function setMode(m) {
   overlay = L.imageOverlay(m + '.png?' + meta.generated, [[s, w], [n, e]], {opacity: +$('op').value}).addTo(map);
   $('lo').textContent = sc.vmin + ' °C'; $('hi').textContent = sc.vmax + ' °C';
   vals = null;
+  loadIso();
   const img = new Image();
   img.onload = () => {
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
@@ -65,11 +73,25 @@ function setMode(m) {
   info();
 }
 
+function loadIso() {
+  if (isoLayer) { map.removeLayer(isoLayer); isoLayer = null; }
+  if (!$('iso').checked) return;
+  const m = mode;
+  fetch(m + '_iso.geojson?' + meta.generated).then(r => r.json()).then(g => {
+    if (m !== mode || !$('iso').checked) return;
+    isoLayer = L.geoJSON(g, {
+      renderer: L.canvas(),
+      style: f => f.properties.major ? {color: '#1b1b1b', weight: 2.4, opacity: .85} : {color: '#333', weight: .8, opacity: .5},
+      onEachFeature: (f, l) => { if (f.properties.major) l.bindTooltip(f.properties.v + ' °C', {sticky: true}); }
+    }).addTo(map);
+  });
+}
+
 function info() {
   const t = meta[mode];
   const lbl = mode === 'tn' ? 'Tn' : 'Tx';
   let h = `Run ICON-CH1 de ${fmt(meta.run)}<br>${lbl} : ${fmt(t.start)} → ${fmt(t.end)}`;
-  if (t.truncated) h += ' <span class="warn">(fenêtre tronquée)</span>';
+  if (t.truncated) h += ` <span class="warn">(fenêtre tronquée : modèle disponible jusqu’à ${fmt(t.last)})</span>`;
   if (mode === 'tn') {
     h += `<br>Indice d’inversion : <b>${meta.inversion}</b> (0 = aucune, 1 = nuit calme et claire)`;
     if (meta.wind !== null) h += `<br>Vent nocturne moyen ${meta.wind} m/s, nébulosité ${meta.cloud} %`;
@@ -82,20 +104,36 @@ function info() {
   $('info').innerHTML = h;
 }
 
-map.on('click', e => {
-  if (!vals) return;
+function valueAt(ll) {
+  if (!vals) return null;
   const [w, s, east, n] = meta.bounds;
-  const x = Math.floor((e.latlng.lng - w) / (east - w) * vals.w);
-  const y = Math.floor((merc(n) - merc(e.latlng.lat)) / (merc(n) - merc(s)) * vals.h);
-  let txt = 'Hors zone';
-  if (x >= 0 && y >= 0 && x < vals.w && y < vals.h) {
-    const i = (y * vals.w + x) * 4, q = vals.d[i] * 256 + vals.d[i + 1];
-    if (q > 0) txt = `${mode === 'tn' ? 'Tn' : 'Tx'} ≈ <b>${(q / 100 - 50).toFixed(1)} °C</b>`;
-  }
-  L.popup().setLatLng(e.latlng).setContent(txt).openOn(map);
+  const x = Math.floor((ll.lng - w) / (east - w) * vals.w);
+  const y = Math.floor((merc(n) - merc(ll.lat)) / (merc(n) - merc(s)) * vals.h);
+  if (x < 0 || y < 0 || x >= vals.w || y >= vals.h) return null;
+  const i = (y * vals.w + x) * 4, q = vals.d[i] * 256 + vals.d[i + 1];
+  return q > 0 ? q / 100 - 50 : null;
+}
+const tip = $('tip'); let raf = null;
+map.on('mousemove', e => {
+  if (raf) return;
+  raf = requestAnimationFrame(() => {
+    raf = null;
+    const v = valueAt(e.latlng);
+    if (v === null) { tip.style.display = 'none'; return; }
+    tip.textContent = `${mode === 'tn' ? 'Tn' : 'Tx'} ${v.toFixed(1)} °C`;
+    tip.style.left = (e.originalEvent.clientX + 14) + 'px';
+    tip.style.top = (e.originalEvent.clientY + 14) + 'px';
+    tip.style.display = 'block';
+  });
+});
+map.on('mouseout', () => tip.style.display = 'none');
+map.on('click', e => {            // tactile : pas de survol, on affiche la valeur au toucher
+  const v = valueAt(e.latlng);
+  L.popup().setLatLng(e.latlng).setContent(v === null ? 'Hors zone' : `${mode === 'tn' ? 'Tn' : 'Tx'} ≈ <b>${v.toFixed(1)} °C</b>`).openOn(map);
 });
 
 $('op').oninput = () => overlay && overlay.setOpacity(+$('op').value);
+$('iso').onchange = () => meta && loadIso();
 $('b-tn').onclick = () => meta && setMode('tn');
 $('b-tx').onclick = () => meta && setMode('tx');
 
