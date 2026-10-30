@@ -6,7 +6,9 @@ Cartes expérimentales publiées sur GitHub Pages, recalculées chaque jour par 
   Lors des nuits radiatives (indice d'inversion proche de 1, fondé sur la nébulosité et le vent nocturnes),
   la correction d'altitude est remplacée par la structure fine d'une thermographie **ECOSTRESS** (anomalie de LST filtrée passe-haut,
   facteur `AMP_LST_TO_AIR`). Mélange continu entre les deux selon l'indice.
-- **Tx** : maximum ICON-CH1 corrigé du relief (pas d'ECOSTRESS).
+- **Tx** : maximum ICON-CH1 corrigé du relief (pas d'ECOSTRESS). Fenêtres (UTC) : Tn de J 18:00 à J+1 18:00 ; Tx de J+1 06:00 à J+2 06:00,
+  souvent tronquée car le run ICON-CH1 ne va qu'à +33 h (indiqué sur la page).
+- Page : valeurs au survol, isolignes fines tous les 1 °C et épaisses tous les 5 °C, fond OpenStreetMap ou Plan IGN (sans clé API).
 - Pas de pas 70 m : `--res 70` (calcul plus lourd, mêmes scripts).
 
 ## Mise en route
@@ -33,3 +35,9 @@ python -m src.run --demo --out site && python -m http.server -d site
 
 ## Sources et licences
 MeteoSwiss Open Government Data (ICON-CH1-EPS) · ECOSTRESS L2 LSTE (NASA LP DAAC) · Copernicus DEM GLO-30 · contour des départements : geo.api.gouv.fr · fond de carte © OpenStreetMap, © CARTO.
+
+## Vérification avec les stations Météo-France (Gard)
+Chaque jour, le workflow : (1) télécharge les données horaires ouvertes du département 30 et en tire la liste des stations actives et les Tn/Tx
+observées des jours passés ; (2) archive les prévisions aux points de stations (`data/history/forecasts.csv`) ; (3) écrit `data/history/report.md`
+(biais et erreur moyenne par situation ciel/vent, par altitude, et réglages suggérés pour `AMP_LST_TO_AIR` et les gradients d'altitude) ;
+(4) enregistre l'historique dans le dépôt. Rien n'est archivé en mode `--demo`. Les étapes 1, 3 et 4 n'empêchent jamais la publication de la page.
