@@ -31,7 +31,8 @@ def colorize(a, vmin, vmax):
 
 
 def class_scale(am, vmin, vmax, band, n_total):
-    """Bornes des classes intermédiaires entre lo et hi (mélange pas régulier / effectifs égaux)."""
+    """Bornes des classes intermédiaires entre lo et hi : mélange pas régulier / effectifs égaux,
+    avec largeur de classe bornée (0,1 °C ... CLASS_MAX_WIDTH_FACTOR x pas régulier)."""
     lo, hi = vmin + band, vmax - band
     n = int(min(n_total - 2, max(2, int(round((hi - lo) / 0.1)))))
     vals = am[np.isfinite(am)]
@@ -39,19 +40,28 @@ def class_scale(am, vmin, vmax, band, n_total):
     f_lo, f_hi = (vals < lo).mean(), (vals < hi).mean()
     q = np.quantile(vals, f_lo + (f_hi - f_lo) * np.arange(n + 1) / n)
     t = (1 - C.CLASS_QUANTILE_MIX) * lin + C.CLASS_QUANTILE_MIX * q
-    t[0], t[-1] = lo, hi
+    w = np.diff(t)
+    wmax = C.CLASS_MAX_WIDTH_FACTOR * (hi - lo) / n
+    for _ in range(50):                              # borne les largeurs puis renormalise
+        w = np.clip(w, 0.1, wmax)
+        w *= (hi - lo) / w.sum()
+    t = lo + np.concatenate([[0.0], np.cumsum(w)])
     t = np.round(t, 1)
-    for k in range(1, n + 1):                      # largeur minimale 0,1 °C par classe
+    t[0], t[-1] = round(lo, 1), round(hi, 1)
+    for k in range(1, n + 1):                        # largeur minimale 0,1 °C après arrondi
         t[k] = max(t[k], t[k - 1] + 0.1)
-    if t[-1] > hi + 1e-6:                          # trop serré : retour à des pas réguliers
+    if t[-1] > hi + 1e-6:
         t = np.round(lin, 1)
     return t
 
 
 def class_colors(n):
-    pos = np.array([s[0] for s in C.STOPS]); rgb = np.array([s[1] for s in C.STOPS], float)
-    mid = np.stack([np.interp((np.arange(n) + .5) / n, pos, rgb[:, c]) for c in range(3)], axis=1)
-    return np.vstack([rgb[0], mid, rgb[-1]]).round().astype(np.uint8)   # rose, n classes, rouge
+    """rose, n classes intermédiaires, rouge vif. Palette fixe si n == 18, sinon échantillonnée dessus."""
+    pal = np.array(C.CLASS_PALETTE, float)
+    if n != len(pal):
+        pos = np.linspace(0, 1, len(pal))
+        pal = np.stack([np.interp((np.arange(n) + .5) / n, pos, pal[:, c]) for c in range(3)], axis=1)
+    return np.vstack([C.CLASS_PINK, pal, C.CLASS_RED]).round().astype(np.uint8)
 
 
 def colorize_classes(a, t, colors):

@@ -32,13 +32,24 @@ ECOSTRESS_LABEL = "19/12/2023"
 STOPS = [
     (0.00, (246, 166, 222)), (0.12, (120, 60, 200)), (0.25, (40, 60, 230)),
     (0.38, (40, 190, 240)), (0.50, (60, 220, 120)), (0.62, (220, 230, 50)),
-    (0.76, (250, 150, 30)), (1.00, (215, 30, 20)),
+    (0.76, (250, 150, 30)), (1.00, (205, 15, 20)),
 ]
 # Plages extrêmes de chaque carte : rose uniforme sur [min, min + BAND], rouge uniforme sur [max - BAND, max]
 BAND = 0.5   # °C
 
 # Classes discrètes par carte (None = dégradé continu). 20 = 1 rose + 18 intermédiaires + 1 rouge.
-N_CLASSES = {"tn": None, "tx": 20}
+N_CLASSES = {"tn": 20, "tx": 20}
 # Placement des bornes des classes intermédiaires : 0 = pas régulier en °C, 1 = classes d'effectif égal
 # (le plus de nuances là où il y a le plus de pixels, p. ex. les plaines chaudes). Valeur intermédiaire = compromis.
-CLASS_QUANTILE_MIX = 0.7
+CLASS_QUANTILE_MIX = 0.5
+# Une classe intermédiaire ne peut pas être plus large que ce multiple du pas régulier (évite p. ex. une seule classe 8,9-11,5 °C)
+CLASS_MAX_WIDTH_FACTOR = 2.0
+
+# Palette discrète : 1 rose + 18 teintes bien distinctes + 1 rouge vif (utilisée si 20 classes)
+CLASS_PINK = (246, 166, 222)
+CLASS_PALETTE = [
+    (176, 106, 224), (120, 72, 214), (66, 72, 228), (40, 120, 240), (40, 170, 245), (40, 210, 240),
+    (40, 215, 190), (50, 210, 140), (80, 205, 90), (140, 215, 60), (195, 228, 50), (235, 232, 50),
+    (250, 205, 40), (250, 172, 30), (245, 138, 30), (240, 108, 30), (234, 78, 28), (226, 52, 26),
+]
+CLASS_RED = (205, 15, 20)
