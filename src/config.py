@@ -36,3 +36,9 @@ STOPS = [
 ]
 # Plages extrêmes de chaque carte : rose uniforme sur [min, min + BAND], rouge uniforme sur [max - BAND, max]
 BAND = 0.5   # °C
+
+# Classes discrètes par carte (None = dégradé continu). 20 = 1 rose + 18 intermédiaires + 1 rouge.
+N_CLASSES = {"tn": None, "tx": 20}
+# Placement des bornes des classes intermédiaires : 0 = pas régulier en °C, 1 = classes d'effectif égal
+# (le plus de nuances là où il y a le plus de pixels, p. ex. les plaines chaudes). Valeur intermédiaire = compromis.
+CLASS_QUANTILE_MIX = 0.7
