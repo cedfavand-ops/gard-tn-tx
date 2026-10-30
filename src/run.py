@@ -6,6 +6,7 @@ from .static import get_static
 from .icon import demo_icon, fetch_icon, day_start
 from .forecast import compute
 from .render import write_all
+from .archive import record_forecast
 
 
 def main():
@@ -25,6 +26,7 @@ def main():
     icon = demo_icon(now) if a.demo else fetch_icon(now)
     tn, tx, info = compute(icon, dem, mask, hp, grid, D, a.force_inversion)
     write_all(a.out, grid, tn, tx, mask, icon, info, D)
+    record_forecast(D, icon, grid, tn, tx, info, dem, demo=a.demo)
     shutil.copy("web/index.html", f"{a.out}/index.html")
     print(f"OK run={icon.run:%Y-%m-%d %H}Z inversion={info['inversion']:.2f} "
           f"Tn[{tn[mask].min():.1f},{tn[mask].max():.1f}] Tx[{tx[mask].min():.1f},{tx[mask].max():.1f}] "

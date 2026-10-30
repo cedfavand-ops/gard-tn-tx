@@ -52,12 +52,14 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
 
     # --- Tx (pas d'ECOSTRESS : valeurs du modèle corrigées du relief)
     tx_pts, tx_end, tx_trunc = window_stat(icon, D, C.TX_WINDOW, np.max)
-    tx = to_grid(icon.lon, icon.lat, tx_pts, grid) + C.LAPSE_TX * dz
+    tx_m = to_grid(icon.lon, icon.lat, tx_pts, grid)
+    tx = tx_m + C.LAPSE_TX * dz
 
     tn[~mask] = np.nan
     tx[~mask] = np.nan
     info = dict(inversion=inv, wind=wind, cloud=cloud,
                 tn_end=tn_end, tn_truncated=bool(tn_trunc),
                 tx_end=tx_end, tx_truncated=bool(tx_trunc),
-                ecostress_cover=float(np.mean(obs[mask])))
+                ecostress_cover=float(np.mean(obs[mask])),
+                fields=dict(tn_model=tn_m, tn_plain=tn_plain, tn_rad=tn_rad, w=w, tx_model=tx_m, dz=dz, hp=hp))
     return tn, tx, info
