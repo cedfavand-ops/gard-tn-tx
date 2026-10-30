@@ -104,7 +104,7 @@ function loadIso() {
     if (m !== mode || !$('iso').checked) return;
     isoLayer = L.geoJSON(g, {
       renderer: L.canvas(),
-      style: f => f.properties.major ? {color: '#1b1b1b', weight: 2.4, opacity: .85} : {color: '#333', weight: .8, opacity: .5},
+      style: f => f.properties.major ? {color: '#1b1b1b', weight: 1.6, opacity: .8} : {color: '#333', weight: .8, opacity: .5},
       onEachFeature: (f, l) => { if (f.properties.major) l.bindTooltip(f.properties.v + ' °C', {sticky: true}); }
     }).addTo(map);
   });
