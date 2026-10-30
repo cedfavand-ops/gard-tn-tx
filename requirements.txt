@@ -7,3 +7,4 @@ matplotlib
 rasterio
 meteodata-lab
 contourpy
+pandas
