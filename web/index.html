@@ -22,6 +22,10 @@
   #tip{position:absolute;z-index:1100;pointer-events:none;display:none;background:rgba(20,20,20,.88);color:#fff;
        padding:3px 8px;border-radius:5px;font-size:13px;white-space:nowrap}
   .chk{display:block;margin:6px 0}
+  .leg{background:#fff;padding:6px 9px;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.3);font-size:11px;line-height:14px;color:#222}
+  .leg div{display:flex;align-items:center;gap:6px}
+  .leg i{display:inline-block;width:20px;height:12px}
+  .leg b{font-size:11px;display:block;margin-bottom:3px}
   @media (max-width:600px){.panel{width:auto;right:10px}}
 </style>
 </head>
@@ -48,6 +52,9 @@ const ign = L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile
 osm.addTo(map);
 L.control.layers({'OpenStreetMap': osm, 'Plan IGN': ign}, null, {position: 'topright'}).addTo(map);
 
+const leg = L.control({position: 'bottomright'});
+leg.onAdd = () => { const d = L.DomUtil.create('div', 'leg'); d.style.display = 'none'; return d; };
+leg.addTo(map);
 let meta, mode = 'tn', overlay = null, vals = null, isoLayer = null;
 const $ = id => document.getElementById(id);
 const fmt = iso => new Date(iso).toLocaleString('fr-FR', {weekday: 'short', day: '2-digit', month: '2-digit',
@@ -62,6 +69,12 @@ function setMode(m) {
   overlay = L.imageOverlay(m + '.png?' + meta.generated, [[s, w], [n, e]], {opacity: +$('op').value}).addTo(map);
   $('lo').textContent = sc.vmin.toFixed(1) + ' °C'; $('hi').textContent = sc.vmax.toFixed(1) + ' °C';
   $('bar').style.background = barCss(sc);
+  const classed = !!sc.classes;
+  $('bar').style.display = $('lo').parentNode.style.display = classed ? 'none' : '';
+  const ld = leg.getContainer();
+  ld.style.display = classed ? '' : 'none';
+  if (classed) ld.innerHTML = `<b>${mode === 'tn' ? 'Tn' : 'Tx'} (°C)</b>` + sc.classes.slice().reverse().map(c =>
+    `<div><i style="background:rgb(${c.rgb.join(',')})"></i>${c.a.toFixed(1)} – ${c.b.toFixed(1)}</div>`).join('');
   vals = null;
   loadIso();
   const img = new Image();
