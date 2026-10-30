@@ -41,3 +41,9 @@ Chaque jour, le workflow : (1) télécharge les données horaires ouvertes du d�
 observées des jours passés ; (2) archive les prévisions aux points de stations (`data/history/forecasts.csv`) ; (3) écrit `data/history/report.md`
 (biais et erreur moyenne par situation ciel/vent, par altitude, et réglages suggérés pour `AMP_LST_TO_AIR` et les gradients d'altitude) ;
 (4) enregistre l'historique dans le dépôt. Rien n'est archivé en mode `--demo`. Les étapes 1, 3 et 4 n'empêchent jamais la publication de la page.
+
+## Calibration automatique (inactive par défaut)
+Chaque lundi (et à chaque lancement manuel), `src/calibration.py` réajuste `AMP_LST_TO_AIR`, `LAPSE_TN` et `LAPSE_TX` à partir de l'historique des stations :
+régression ramenée vers les valeurs de `config.py` (poids équivalent à `CAL_MIN_N` cas), bornes `CAL_BOUNDS`, et validation sur les derniers jours mis de côté
+(le réglage n'est retenu que s'il réduit l'erreur d'au moins `CAL_MIN_GAIN`). Le résultat est écrit dans `data/history/calibration.json` (journal : `calibration_log.csv`).
+Les cartes n'utilisent ce fichier que si `AUTO_CALIBRATION = True` dans `src/config.py` ; pour revenir en arrière, remettre `False`.
