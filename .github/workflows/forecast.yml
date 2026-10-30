@@ -10,7 +10,7 @@ on:
         default: "150"
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -38,8 +38,31 @@ jobs:
             data/static_*.npz
             data/gard_contour.json
           key: static-${{ hashFiles('data/ecostress/*.tif', 'src/static.py', 'src/config.py') }}-${{ inputs.res || '150' }}
+      - name: Observations des stations Météo-France du Gard
+        continue-on-error: true
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python -u -m src.observe
       - name: Calcul des cartes
-        run: python -m src.run --res ${{ inputs.res || '150' }} --out site
+        env:
+          TQDM_DISABLE: "1"
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set +e
+          python -u -m src.run --res ${{ inputs.res || '150' }} --out site 2>&1 \
+            | grep --line-buffered -v -E '^-{20,}|definitions\.edzw|Please check environment|^\s*$|Earthkit-data caching|AWSAccessKeyId'
+          code=${PIPESTATUS[0]}
+          exit $code
+      - name: Vérification prévisions / stations
+        continue-on-error: true
+        run: python -u -m src.verify
+      - name: Sauvegarder l'historique dans le dépôt
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/history data/stations_gard.csv
+          git diff --cached --quiet || (git commit -m "Historique prévisions/observations [skip ci]" && git push)
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
@@ -53,4 +76,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-
