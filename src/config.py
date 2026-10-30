@@ -53,3 +53,14 @@ CLASS_PALETTE = [
     (250, 205, 40), (250, 172, 30), (245, 138, 30), (240, 108, 30), (234, 78, 28), (226, 52, 26),
 ]
 CLASS_RED = (205, 15, 20)
+
+# --- Calibration automatique à partir des stations (voir src/calibration.py)
+AUTO_CALIBRATION = False   # False = les cartes utilisent les valeurs ci-dessus. True = elles utilisent data/history/calibration.json
+CAL_MIN_N = 30             # nombre minimal de cas (station-jours) pour qu'un réglage puisse bouger
+CAL_TEST_FRACTION = 0.3    # part des jours les plus récents mise de côté pour valider
+CAL_MIN_GAIN = 0.02        # le nouveau réglage doit réduire l'erreur moyenne d'au moins 2 % sur ces jours
+CAL_BOUNDS = {             # bornes de sécurité de chaque paramètre
+    "AMP_LST_TO_AIR": (0.2, 1.2),
+    "LAPSE_TN": (-0.0100, -0.0030),
+    "LAPSE_TX": (-0.0100, -0.0040),
+}

@@ -7,6 +7,7 @@ from .icon import demo_icon, fetch_icon, day_start
 from .forecast import compute
 from .render import write_all
 from .archive import record_forecast
+from . import calibration
 
 
 def main():
@@ -20,6 +21,7 @@ def main():
 
     now = datetime.fromisoformat(a.now).replace(tzinfo=timezone.utc) if a.now else datetime.now(timezone.utc)
     D = day_start(now)
+    calibration.apply()
     grid = Grid(a.res)
     os.makedirs(a.out, exist_ok=True)
     dem, mask, hp = get_static(grid, demo=a.demo)
