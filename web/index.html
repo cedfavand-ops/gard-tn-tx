@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gard – prévision Tn / Tx du lendemain</title>
+<title>Gard – prévisions Tn / Tx / rafales du lendemain</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   html,body,#map{height:100%;margin:0}
@@ -11,11 +11,9 @@
   .panel{position:absolute;z-index:1000;top:10px;left:10px;width:270px;max-height:calc(100% - 20px);overflow:auto;
          background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 2px 10px rgba(0,0,0,.3);color:#222}
   .panel h1{font-size:15px;margin:0 0 10px}
-  .tabs{display:flex;gap:8px;margin-bottom:10px}
-  .tabs button{flex:1;padding:7px 0;border:1px solid #1a5bbf;border-radius:6px;background:#fff;color:#1a5bbf;font-weight:600;cursor:pointer}
+  .tabs{display:flex;gap:6px;margin-bottom:10px}
+  .tabs button{flex:1;padding:7px 0;border:1px solid #1a5bbf;border-radius:6px;background:#fff;color:#1a5bbf;font-weight:600;cursor:pointer;font-size:12px}
   .tabs button.on{background:#1a5bbf;color:#fff}
-  #bar{height:10px;border-radius:5px;margin-top:4px}
-  .lab{display:flex;justify-content:space-between;font-size:11px;color:#555;margin-bottom:8px}
   .small{font-size:12px;color:#444;margin-top:8px}
   .warn{color:#b3261e;font-weight:600}
   input[type=range]{width:100%}
@@ -34,11 +32,9 @@
 <div id="tip"></div>
 <div class="panel">
   <h1>Gard – prévision du lendemain</h1>
-  <div class="tabs"><button id="b-tn" class="on">Tn (nuit)</button><button id="b-tx">Tx (jour)</button></div>
-  <div id="bar"></div>
-  <div class="lab"><span id="lo"></span><span id="hi"></span></div>
+  <div class="tabs"><button id="b-tn" class="on">Tn (nuit)</button><button id="b-tx">Tx (jour)</button><button id="b-gust" style="display:none">Rafales</button></div>
   <label>Opacité des couleurs<input id="op" type="range" min="0" max="1" step="0.05" value="0.8"></label>
-  <label class="chk"><input type="checkbox" id="iso" checked> Isolignes (fines : 1 °C, épaisses : 5 °C)</label>
+  <label class="chk"><input type="checkbox" id="iso" checked> Isolignes (fines / épaisses)</label>
   <div class="small" id="info">Chargement…</div>
   <div class="small">Survolez la carte (ou touchez-la) pour lire la valeur.</div>
 </div>
@@ -55,26 +51,23 @@ L.control.layers({'OpenStreetMap': osm, 'Plan IGN': ign}, null, {position: 'topr
 const leg = L.control({position: 'bottomright'});
 leg.onAdd = () => { const d = L.DomUtil.create('div', 'leg'); d.style.display = 'none'; return d; };
 leg.addTo(map);
+
 let meta, mode = 'tn', overlay = null, vals = null, isoLayer = null;
 const $ = id => document.getElementById(id);
-const fmt = iso => new Date(iso).toLocaleString('fr-FR', {weekday: 'short', day: '2-digit', month: '2-digit',
-  hour: '2-digit', minute: '2-digit', timeZone: 'UTC'}) + ' UTC';
+const fmt = (iso, tz) => new Date(iso).toLocaleString('fr-FR', {weekday: 'short', day: '2-digit', month: '2-digit',
+  hour: '2-digit', minute: '2-digit', timeZone: tz || 'UTC'}) + (tz ? '' : ' UTC');
 const merc = la => Math.log(Math.tan(Math.PI / 4 + la * Math.PI / 360));
 
 function setMode(m) {
   mode = m;
-  $('b-tn').classList.toggle('on', m === 'tn'); $('b-tx').classList.toggle('on', m === 'tx');
+  ['tn', 'tx', 'gust'].forEach(k => $('b-' + k).classList.toggle('on', k === m));
   const [w, s, e, n] = meta.bounds, sc = meta[m];
   if (overlay) map.removeLayer(overlay);
   overlay = L.imageOverlay(m + '.png?' + meta.generated, [[s, w], [n, e]], {opacity: +$('op').value}).addTo(map);
-  $('lo').textContent = sc.vmin.toFixed(1) + ' °C'; $('hi').textContent = sc.vmax.toFixed(1) + ' °C';
-  $('bar').style.background = barCss(sc);
-  const classed = !!sc.classes;
-  $('bar').style.display = $('lo').parentNode.style.display = classed ? 'none' : '';
   const ld = leg.getContainer();
-  ld.style.display = classed ? '' : 'none';
-  if (classed) ld.innerHTML = `<b>${mode === 'tn' ? 'Tn' : 'Tx'} (°C)</b>` + sc.classes.slice().reverse().map(c =>
-    `<div><i style="background:rgb(${c.rgb.join(',')})"></i>${c.a.toFixed(1)} – ${c.b.toFixed(1)}</div>`).join('');
+  ld.style.display = '';
+  ld.innerHTML = `<b>${sc.label} (${sc.unit})</b>` + sc.classes.slice().reverse().map(c =>
+    `<div><i style="background:rgb(${c.rgb.join(',')})"></i>${c.a.toFixed(sc.dec)} – ${c.b.toFixed(sc.dec)}</div>`).join('');
   vals = null;
   loadIso();
   const img = new Image();
@@ -87,40 +80,38 @@ function setMode(m) {
   info();
 }
 
-function barCss(sc) {
-  const rng = sc.vmax - sc.vmin, lo = (sc.lo - sc.vmin) / rng * 100, hi = (sc.hi - sc.vmin) / rng * 100;
-  const rgb = c => `rgb(${c.join(',')})`, S = meta.stops;
-  const st = [`${rgb(S[0][1])} 0%`, `${rgb(S[0][1])} ${lo}%`];
-  S.forEach(s => st.push(`${rgb(s[1])} ${lo + (hi - lo) * s[0]}%`));
-  st.push(`${rgb(S[S.length - 1][1])} 100%`);
-  return 'linear-gradient(to right,' + st.join(',') + ')';
-}
-
 function loadIso() {
   if (isoLayer) { map.removeLayer(isoLayer); isoLayer = null; }
   if (!$('iso').checked) return;
-  const m = mode;
+  const m = mode, unit = meta[m].unit;
   fetch(m + '_iso.geojson?' + meta.generated).then(r => r.json()).then(g => {
     if (m !== mode || !$('iso').checked) return;
     isoLayer = L.geoJSON(g, {
       renderer: L.canvas(),
-      style: f => f.properties.major ? {color: '#1b1b1b', weight: 1.6, opacity: .8} : {color: '#333', weight: .8, opacity: .5},
-      onEachFeature: (f, l) => { if (f.properties.major) l.bindTooltip(f.properties.v + ' °C', {sticky: true}); }
+      style: f => f.properties.major ? {color: '#1b1b1b', weight: 1.6, opacity: .7} : {color: '#333', weight: .8, opacity: .5},
+      onEachFeature: (f, l) => { if (f.properties.major) l.bindTooltip(f.properties.v + ' ' + unit, {sticky: true}); }
     }).addTo(map);
   });
 }
 
 function info() {
   const t = meta[mode];
-  const lbl = mode === 'tn' ? 'Tn' : 'Tx';
-  let h = `Run ICON-CH1 de ${fmt(meta.run)}<br>${lbl} : ${fmt(t.start)} → ${fmt(t.end)}`;
-  if (t.truncated) h += ` <span class="warn">(fenêtre tronquée : modèle disponible jusqu’à ${fmt(t.last)})</span>`;
-  if (mode === 'tn') {
-    h += `<br>Indice d’inversion : <b>${meta.inversion}</b> (0 = aucune, 1 = nuit calme et claire)`;
-    if (meta.wind !== null) h += `<br>Vent nocturne moyen ${meta.wind} m/s, nébulosité ${meta.cloud} %`;
-    h += `<br>Structure fine d’après une thermographie ECOSTRESS du ${meta.ecostress}.`;
+  let h = `Run ICON-CH1 de ${fmt(meta.run)}<br>`;
+  if (mode === 'gust') {
+    h += `Rafale maximale du ${fmt(t.start, t.tz)} au ${fmt(t.end, t.tz)} (heure de Paris)`;
+    if (t.truncated) h += ` <span class="warn">(tronquée : modèle disponible jusqu’à ${fmt(t.last, t.tz)})</span>`;
+    h += `<br>Vent dominant au moment du maximum : <b>${t.dir_name}</b> (${t.dir_deg}°)`;
+    h += '<br>Rafale ICON-CH1 corrigée de l’exposition au vent (relief et abri). <b>Expérimental</b> : coefficients non encore calés sur les stations.';
   } else {
-    h += '<br>Valeurs du modèle corrigées du relief.';
+    h += `${t.label} : ${fmt(t.start)} → ${fmt(t.end)}`;
+    if (t.truncated) h += ` <span class="warn">(fenêtre tronquée : modèle disponible jusqu’à ${fmt(t.last)})</span>`;
+    if (mode === 'tn') {
+      h += `<br>Indice d’inversion : <b>${meta.inversion}</b> (0 = aucune, 1 = nuit calme et claire)`;
+      if (meta.wind !== null) h += `<br>Vent nocturne moyen ${meta.wind} m/s, nébulosité ${meta.cloud} %`;
+      h += `<br>Structure fine d’après une thermographie ECOSTRESS du ${meta.ecostress}.`;
+    } else {
+      h += '<br>Valeurs du modèle corrigées du relief.';
+    }
   }
   h += `<br><br>Prévision expérimentale, maille ${meta.res} m.<br>Données : MeteoSuisse, ICON-CH1-EPS (OGD) ; ECOSTRESS (NASA/LP DAAC) ; Copernicus DEM.`;
   if (meta.demo) h = '<span class="warn">DÉMONSTRATION : données synthétiques</span><br>' + h;
@@ -136,6 +127,7 @@ function valueAt(ll) {
   const i = (y * vals.w + x) * 4, q = vals.d[i] * 256 + vals.d[i + 1];
   return q > 0 ? q / 100 - 50 : null;
 }
+const txt = v => { const sc = meta[mode]; return `${sc.label} ${v.toFixed(sc.dec)} ${sc.unit}`; };
 const tip = $('tip'); let raf = null;
 map.on('mousemove', e => {
   if (raf) return;
@@ -143,7 +135,7 @@ map.on('mousemove', e => {
     raf = null;
     const v = valueAt(e.latlng);
     if (v === null) { tip.style.display = 'none'; return; }
-    tip.textContent = `${mode === 'tn' ? 'Tn' : 'Tx'} ${v.toFixed(1)} °C`;
+    tip.textContent = txt(v);
     tip.style.left = (e.originalEvent.clientX + 14) + 'px';
     tip.style.top = (e.originalEvent.clientY + 14) + 'px';
     tip.style.display = 'block';
@@ -152,16 +144,16 @@ map.on('mousemove', e => {
 map.on('mouseout', () => tip.style.display = 'none');
 map.on('click', e => {            // tactile : pas de survol, on affiche la valeur au toucher
   const v = valueAt(e.latlng);
-  L.popup().setLatLng(e.latlng).setContent(v === null ? 'Hors zone' : `${mode === 'tn' ? 'Tn' : 'Tx'} ≈ <b>${v.toFixed(1)} °C</b>`).openOn(map);
+  L.popup().setLatLng(e.latlng).setContent(v === null ? 'Hors zone' : `<b>${txt(v)}</b>`).openOn(map);
 });
 
 $('op').oninput = () => overlay && overlay.setOpacity(+$('op').value);
 $('iso').onchange = () => meta && loadIso();
-$('b-tn').onclick = () => meta && setMode('tn');
-$('b-tx').onclick = () => meta && setMode('tx');
+['tn', 'tx', 'gust'].forEach(k => $('b-' + k).onclick = () => meta && setMode(k));
 
 fetch('meta.json?' + Date.now()).then(r => r.json()).then(m => {
   meta = m;
+  if (m.gust) $('b-gust').style.display = '';
   setMode('tn');
 }).catch(() => $('info').textContent = 'Prévision indisponible.');
 </script>
