@@ -53,6 +53,15 @@ def main():
     out += ["## Tx par classe d'altitude\n", _table(tx, "alt_cls", cols_tx), "",
             "## Tx par nébulosité\n", _table(tx.assign(neb=_cloud_cls(tx.cloud)), "neb", cols_tx), ""]
 
+    if "gust_obs" in m.columns:
+        gg = m.dropna(subset=["gust_obs", "gust_model"]).copy()
+        if len(gg):
+            gg["vent_cls"] = _wind_cls(gg.wind_obs.fillna(gg.wind_pred) if "wind_pred" in gg else gg.wind_obs).astype(str)
+            cols_g = {"gust_model": "gust_obs", "gust": "gust_obs"}
+            out += ["## Rafales maximales (km/h) par classe d'altitude\n", _table(gg, "alt_cls", cols_g), "",
+                    "## Rafales maximales par vent nocturne observé\n", _table(gg, "vent_cls", cols_g), "",
+                    "`gust_model` = ICON brut ; `gust` = carte publiée (corrigée de l'exposition). "
+                    "Les coefficients `GUST_Z_GAIN` et `GUST_SX_GAIN` se règlent à la main sur ce tableau.\n"]
     out.append("## Réglages suggérés (à examiner, pas à appliquer à l'aveugle)\n")
     rad = tn[(tn.inversion >= 0.7) & (tn.wind < 2) & (tn.cloud < 25) & tn.hp.notna()]
     if len(rad) >= MIN_N and (rad.hp ** 2).sum() > 0:

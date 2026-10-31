@@ -44,6 +44,9 @@ def record_forecast(D, icon, grid, tn, tx, info, dem, demo=False, stations_path=
         "tx_model": F["tx_model"][iy, ix].round(2),
         "inversion": round(info["inversion"], 2), "wind_pred": info["wind"], "cloud_pred": info["cloud"],
         "tn_truncated": info["tn_truncated"], "tx_truncated": info["tx_truncated"],
+        "gust": F["gust"][iy, ix].round(1) if "gust" in F else np.nan,              # km/h
+        "gust_model": F["gust_model"][iy, ix].round(1) if "gust_model" in F else np.nan,
+        "gust_factor": F["gust_factor"][iy, ix].round(2) if "gust_factor" in F else np.nan,
     })
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     if os.path.exists(out_path):

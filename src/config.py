@@ -38,7 +38,7 @@ STOPS = [
 BAND = 0.5   # °C
 
 # Classes discrètes par carte (None = dégradé continu). 20 = 1 rose + 18 intermédiaires + 1 rouge.
-N_CLASSES = {"tn": 20, "tx": 20}
+N_CLASSES = {"tn": 20, "tx": 20, "gust": 20}
 # Placement des bornes des classes intermédiaires : 0 = pas régulier en °C, 1 = classes d'effectif égal
 # (le plus de nuances là où il y a le plus de pixels, p. ex. les plaines chaudes). Valeur intermédiaire = compromis.
 CLASS_QUANTILE_MIX = 0.5
@@ -64,3 +64,21 @@ CAL_BOUNDS = {             # bornes de sécurité de chaque paramètre
     "LAPSE_TN": (-0.0100, -0.0030),
     "LAPSE_TX": (-0.0100, -0.0040),
 }
+
+# --- Rafales maximales (jour civil de demain, heure de Paris : 00:00 -> 24:00)
+GUST_TZ = "Europe/Paris"
+GUST_Z_GAIN = 0.15          # +/- 15 % pour une position 100 m au-dessus / au-dessous du relief « vu » par le modèle
+GUST_SX_GAIN = 0.25         # +/- 25 % selon l'abri (Sx) par rapport à la direction du vent
+GUST_SX_SCALE_DEG = 15.0    # Sx (degrés) à partir duquel l'effet d'abri / d'exposition est maximal
+GUST_FACTOR_BOUNDS = (0.6, 1.5)
+SX_DISTANCES_M = (300, 600, 1000, 1500, 2200, 3000)   # distances amont examinées pour l'indice d'abri Sx
+BAND_GUST = 2.0             # km/h : classes extrêmes uniformes (bas et haut de l'échelle)
+
+# Palette discrète pour les rafales : bleu pâle (calme) -> vert -> jaune -> orange -> rouge -> violet (très fort)
+GUST_LOW = (225, 238, 245)
+GUST_PALETTE = [
+    (170, 225, 240), (120, 210, 235), (70, 195, 225), (60, 185, 180), (70, 190, 130), (110, 200, 90),
+    (160, 210, 70), (205, 220, 60), (240, 225, 55), (250, 200, 45), (250, 170, 40), (248, 140, 35),
+    (244, 108, 32), (238, 75, 35), (228, 45, 45), (210, 30, 80), (180, 25, 120), (145, 25, 150),
+]
+GUST_HIGH = (95, 20, 130)

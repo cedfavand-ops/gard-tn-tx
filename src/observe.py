@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 from . import config as C
 from .archive import STATIONS, FORECASTS
+from .timewin import gust_window_utc
 
 DEPT = "30"
 BASE = "https://object.files.data.gouv.fr/meteofrance/data/synchro_ftp/BASE/HOR/"
@@ -51,11 +52,11 @@ def read_hourly(src):
     df["time"] = pd.to_datetime(df["AAAAMMJJHH"].astype(str), format="%Y%m%d%H", utc=True)
     df["NUM_POSTE"] = df["NUM_POSTE"].astype(str).str.zfill(8)
     for c in df.columns:
-        if c in ("T", "TN", "TX", "FF", "NEB", "N", "LAT", "LON", "ALTI"):
+        if c in ("T", "TN", "TX", "FF", "FXI", "FXI3S", "FXY", "NEB", "N", "LAT", "LON", "ALTI"):
             df[c] = pd.to_numeric(df[c], errors="coerce")
         # données douteuses (qualité 2) écartées si la colonne de qualité existe
         q = "Q" + c
-        if q in df.columns and c in ("T", "TN", "TX", "FF", "NEB", "N"):
+        if q in df.columns and c in ("T", "TN", "TX", "FF", "FXI", "FXI3S", "FXY", "NEB", "N"):
             df.loc[pd.to_numeric(df[q], errors="coerce") == 2, c] = np.nan
     return df
 
@@ -82,6 +83,8 @@ def day_obs(df, D):
     out = []
     tn_c = _col(df, "TN", "T"); tx_c = _col(df, "TX", "T")
     wnd, cld = _col(df, "FF"), _col(df, "NEB", "N")
+    gcol = _col(df, "FXI", "FXI3S", "FXY")                       # rafale (m/s) ; on garde la première colonne disponible
+    gs, ge = gust_window_utc(D)
     if df["time"].max() < t(C.TX_WINDOW[1]):
         return pd.DataFrame()                      # fenêtre pas encore complète dans le fichier
     for pid, g in df.groupby("NUM_POSTE"):
@@ -89,12 +92,15 @@ def day_obs(df, D):
         w2 = g[(g.time >= t(C.TX_WINDOW[0])) & (g.time <= t(C.TX_WINDOW[1]))]
         wn = g[(g.time >= t(C.NIGHT_WINDOW[0])) & (g.time <= t(C.NIGHT_WINDOW[1]))]
         n1, n2 = w1[tn_c].notna().sum(), w2[tx_c].notna().sum()
+        wg = g[(g.time > gs) & (g.time <= ge)]
+        ng = int(wg[gcol].notna().sum()) if gcol else 0
         cloud = wn[cld].mean() if cld and wn[cld].notna().sum() >= 5 else np.nan
         if cld and cloud == cloud and wn[cld].max() <= 8:
             cloud *= 12.5                          # octas -> %
         out.append(dict(date=D.strftime("%Y-%m-%d"), id=pid,
                         tn_obs=w1[tn_c].min() if n1 >= 20 else np.nan, n_tn=int(n1),
                         tx_obs=w2[tx_c].max() if n2 >= 20 else np.nan, n_tx=int(n2),
+                        gust_obs=wg[gcol].max() * 3.6 if gcol and ng >= 20 else np.nan, n_gust=ng,
                         wind_obs=wn[wnd].mean() if wnd and wn[wnd].notna().sum() >= 5 else np.nan,
                         cloud_obs=cloud))
     return pd.DataFrame(out)

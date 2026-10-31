@@ -17,6 +17,12 @@ class IconData:
     cloud: np.ndarray    # (nt_night, npts) %
     night_times: list
     demo: bool = False
+    sel: object = None            # masque des points ICON retenus (pour relire d'autres variables)
+    gust: object = None           # (nt, npts) rafales VMAX_10M en m/s, NaN si échéance manquante
+    gust_times: object = None
+    uv_times: object = None       # échéances (toutes les 3 h) du vent moyen pour la direction
+    u10: object = None
+    v10: object = None
 
 
 def day_start(now):
@@ -42,7 +48,18 @@ def demo_icon(now, seed=1):
     nt = [t for t in times if C.NIGHT_WINDOW[0] <= (t - D).total_seconds() / 3600 <= C.NIGHT_WINDOW[1]]
     wind = np.full((len(nt), n), 1.3) + 0.2 * rng.standard_normal((len(nt), n))
     cloud = np.full((len(nt), n), 39.0)
-    return IconData(run, times, lon, lat, t2m, wind, cloud, nt, demo=True)
+    from .timewin import gust_valid_times
+    gt = gust_valid_times(D)
+    hh = np.array([(t - gt[0]).total_seconds() / 3600 for t in gt])
+    amp = 11 + 7 * np.cos((hh - 12) * 2 * np.pi / 24)            # m/s, maximum en milieu de journée
+    gust = amp[:, None] * (1 + 0.5 * np.exp(-(((lon - 3.6) / .3) ** 2 + ((lat - 44.2) / .25) ** 2)))[None, :] \
+        + rng.normal(0, 0.5, (len(gt), n))
+    uvt = gt[::3]
+    w = (amp[::3] * 0.55)[:, None] * np.ones((1, n))
+    phi = np.radians(330.0)                                     # mistral (vent de nord-nord-ouest)
+    u10, v10 = -w * np.sin(phi), -w * np.cos(phi)
+    return IconData(run, times, lon, lat, t2m, wind, cloud, nt, demo=True,
+                    gust=gust, gust_times=gt, uv_times=uvt, u10=u10, v10=v10)
 
 
 # ------------------------------------------------------------------ RÉEL
@@ -150,4 +167,49 @@ def _fetch_run(ogd_api, run, D):
             print(f"Arrêt à +{lead} h : {e!r}")
             break
     print(f"[ICON] terminé : {len(times)} échéances de température, {len(ntimes)} nocturnes", flush=True)
-    return IconData(run, times, lon, lat, np.array(t2m), np.array(wind), np.array(cloud), ntimes)
+    icon = IconData(run, times, lon, lat, np.array(t2m), np.array(wind), np.array(cloud), ntimes, sel=sel)
+    try:
+        _fetch_gust(ogd_api, icon, run, D)
+    except Exception as e:                       # les rafales ne doivent jamais bloquer les cartes de température
+        print(f"[ICON] rafales indisponibles : {e!r}", flush=True)
+        icon.gust = None
+    return icon
+
+
+def _get_any(ogd_api, var, runs, valid, sel):
+    """Lit une variable à l'échéance `valid` dans le premier run qui la fournit (run principal puis run de 03 UTC, 45 h)."""
+    for run in runs:
+        lead = int((valid - run).total_seconds() // 3600)
+        if lead < 0:
+            continue
+        try:
+            return _field(ogd_api, var, run, lead)[0][sel]
+        except Exception:
+            continue
+    return None
+
+
+def _fetch_gust(ogd_api, icon, run, D):
+    from .timewin import gust_valid_times
+    alt = D.replace(hour=3)                                  # le run de 03 UTC va jusqu'à +45 h : couvre la fin de la journée
+    runs = [run] + ([alt] if alt != run else [])
+    gt = gust_valid_times(D)
+    npts = icon.lon.size
+    gust = np.full((len(gt), npts), np.nan)
+    for k, t in enumerate(gt):
+        v = _get_any(ogd_api, "VMAX_10M", runs, t, icon.sel)
+        if v is not None:
+            gust[k] = v
+            print(f"[ICON] rafales {t:%d/%m %H}Z ok", flush=True)
+    if not np.isfinite(gust).any():
+        raise RuntimeError("VMAX_10M introuvable")
+    uvt, u, v = [], [], []
+    for t in gt[::3]:
+        uu = _get_any(ogd_api, "U_10M", runs, t, icon.sel)
+        vv = _get_any(ogd_api, "V_10M", runs, t, icon.sel)
+        if uu is not None and vv is not None:
+            uvt.append(t); u.append(uu); v.append(vv)
+    if not uvt:
+        raise RuntimeError("U_10M / V_10M introuvables pour la direction du vent")
+    icon.gust, icon.gust_times = gust, gt
+    icon.uv_times, icon.u10, icon.v10 = uvt, np.array(u), np.array(v)

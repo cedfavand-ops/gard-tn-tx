@@ -1,5 +1,6 @@
 """python -m src.run [--demo] [--res 150] [--out site] [--force-inversion 1]"""
 import argparse, os, shutil
+import numpy as np
 from datetime import datetime, timezone
 from .grid import Grid
 from .static import get_static
@@ -8,6 +9,7 @@ from .forecast import compute
 from .render import write_all
 from .archive import record_forecast
 from . import calibration
+from .wind import sx_stack, compute_gust
 
 
 def main():
@@ -27,7 +29,16 @@ def main():
     dem, mask, hp = get_static(grid, demo=a.demo)
     icon = demo_icon(now) if a.demo else fetch_icon(now)
     tn, tx, info = compute(icon, dem, mask, hp, grid, D, a.force_inversion)
-    write_all(a.out, grid, tn, tx, mask, icon, info, D)
+    gust = ginfo = None
+    if icon.gust is not None:
+        try:
+            gust, ginfo, gf = compute_gust(icon, dem, mask, grid, D, sx_stack(dem, grid))
+            info["fields"].update(gust=gust, **gf)
+            print(f"[RAFALES] max {np.nanmax(gust):.0f} km/h, vent dominant {ginfo['dir_name']} ({ginfo['dir_deg']:.0f}°)", flush=True)
+        except Exception as e:
+            print(f"[RAFALES] calcul impossible : {e!r}", flush=True)
+            gust = ginfo = None
+    write_all(a.out, grid, tn, tx, mask, icon, info, D, gust, ginfo)
     record_forecast(D, icon, grid, tn, tx, info, dem, demo=a.demo)
     shutil.copy("web/index.html", f"{a.out}/index.html")
     print(f"OK run={icon.run:%Y-%m-%d %H}Z inversion={info['inversion']:.2f} "
