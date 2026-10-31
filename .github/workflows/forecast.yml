@@ -36,8 +36,9 @@ jobs:
         with:
           path: |
             data/static_*.npz
+            data/sx_*.npz
             data/gard_contour.json
-          key: static-${{ hashFiles('data/ecostress/*.tif', 'src/static.py', 'src/config.py') }}-${{ inputs.res || '150' }}
+          key: static-${{ hashFiles('data/ecostress/*.tif', 'src/static.py', 'src/wind.py') }}-${{ inputs.res || '150' }}
       - name: Observations des stations Météo-France du Gard
         continue-on-error: true
         env:
