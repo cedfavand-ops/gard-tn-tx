@@ -47,3 +47,9 @@ Chaque lundi (et à chaque lancement manuel), `src/calibration.py` réajuste `AM
 régression ramenée vers les valeurs de `config.py` (poids équivalent à `CAL_MIN_N` cas), bornes `CAL_BOUNDS`, et validation sur les derniers jours mis de côté
 (le réglage n'est retenu que s'il réduit l'erreur d'au moins `CAL_MIN_GAIN`). Le résultat est écrit dans `data/history/calibration.json` (journal : `calibration_log.csv`).
 Les cartes n'utilisent ce fichier que si `AUTO_CALIBRATION = True` dans `src/config.py` ; pour revenir en arrière, remettre `False`.
+
+## Carte des rafales (expérimentale)
+Rafale maximale (`VMAX_10M` d'ICON-CH1) sur le jour civil de demain, **00:00 → 24:00 heure de Paris** (fuseau réglable : `GUST_TZ`), ramenée à la maille par un facteur d'exposition :
+position par rapport au relief « vu » par le modèle (`GUST_Z_GAIN`) et indice d'abri Sx dans la direction du vent au moment du maximum (`GUST_SX_GAIN`, `data/sx_<res>.npz` en cache).
+Le facteur est normalisé à l'échelle du modèle (la moyenne sur ~1 km reste celle d'ICON). Le run principal s'arrête à +33 h ; la fin de la journée est complétée avec le run de 03 UTC (+45 h) quand il existe.
+Les rafales observées (colonne FXI Météo-France) sont archivées et comparées dans `report.md` ; leurs coefficients ne sont pas calibrés automatiquement.
