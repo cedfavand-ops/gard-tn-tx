@@ -120,7 +120,8 @@ def write_all(out, grid, tn, tx, mask, icon, info, D, gust=None, gust_info=None)
     meta = dict(
         generated=iso(datetime.now(timezone.utc)),
         run=iso(icon.run), demo=icon.demo, res=grid.res, bounds=list(grid.bounds),
-        inversion=round(info["inversion"], 2),
+        inversion=round(info["inversion"], 2), inversion_lo=round(info["inversion_lo"], 2),
+        inversion_hi=round(info["inversion_hi"], 2),
         wind=None if np.isnan(info["wind"]) else round(info["wind"], 1),
         cloud=None if np.isnan(info["cloud"]) else round(info["cloud"]),
         ecostress=C.ECOSTRESS_LABEL, ecostress_cover=round(info["ecostress_cover"], 2),

@@ -24,13 +24,20 @@ def window_stat(icon, D, window, fn):
     return fn(icon.t2m[idx], axis=0), icon.times[idx[-1]], truncated
 
 
-def inversion_index(icon):
+def inversion_field(icon, grid):
+    """Indice d'inversion SPATIAL (0 = aucune, 1 = nuit calme et claire).
+    Calculé en chaque point du modèle : moyenne, sur les heures de nuit, du produit
+    (facteur nébulosité) x (facteur vent), puis interpolé sur la grille. Un secteur soumis au mistral
+    obtient donc un indice proche de 0 même si le reste du département est calme."""
     if len(icon.night_times) == 0:
-        return 0.0, float("nan"), float("nan")
-    cloud, wind = float(np.mean(icon.cloud)), float(np.mean(icon.wind))
-    fc = np.clip((C.CLOUD_ZERO - cloud) / (C.CLOUD_ZERO - C.CLOUD_FULL), 0, 1)
-    fw = np.clip((C.WIND_ZERO - wind) / (C.WIND_ZERO - C.WIND_FULL), 0, 1)
-    return float(fc * fw), wind, cloud
+        z = np.zeros((grid.ny, grid.nx), np.float32)
+        return z, z + np.nan, z + np.nan
+    fc = np.clip((C.CLOUD_ZERO - icon.cloud) / (C.CLOUD_ZERO - C.CLOUD_FULL), 0, 1)
+    fw = np.clip((C.WIND_ZERO - icon.wind) / (C.WIND_ZERO - C.WIND_FULL), 0, 1)
+    inv = np.clip(to_grid(icon.lon, icon.lat, np.mean(fc * fw, axis=0), grid), 0, 1)
+    wind = to_grid(icon.lon, icon.lat, np.mean(icon.wind, axis=0), grid)
+    cloud = to_grid(icon.lon, icon.lat, np.mean(icon.cloud, axis=0), grid)
+    return inv, wind, cloud
 
 
 def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
@@ -41,9 +48,9 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
     tn_pts, tn_end, tn_trunc = window_stat(icon, D, C.TN_WINDOW, np.min)
     tn_m = to_grid(icon.lon, icon.lat, tn_pts, grid)
     tn_plain = tn_m + C.LAPSE_TN * dz
-    inv, wind, cloud = inversion_index(icon)
+    inv, wind_f, cloud_f = inversion_field(icon, grid)
     if force_inversion is not None:
-        inv = float(force_inversion)
+        inv = np.full_like(inv, float(force_inversion))
     obs = np.isfinite(hp)
     w_obs = np.clip(gaussian_filter(obs.astype(np.float32), 4) * 1.2, 0, 1)   # fondu aux bords
     w = inv * w_obs
@@ -57,9 +64,13 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
 
     tn[~mask] = np.nan
     tx[~mask] = np.nan
-    info = dict(inversion=inv, wind=wind, cloud=cloud,
+    iv = inv[mask]
+    info = dict(inversion=float(np.mean(iv)), inversion_lo=float(np.percentile(iv, 10)),
+                inversion_hi=float(np.percentile(iv, 90)),
+                wind=float(np.nanmean(wind_f[mask])), cloud=float(np.nanmean(cloud_f[mask])),
                 tn_end=tn_end, tn_truncated=bool(tn_trunc),
                 tx_end=tx_end, tx_truncated=bool(tx_trunc),
                 ecostress_cover=float(np.mean(obs[mask])),
-                fields=dict(tn_model=tn_m, tn_plain=tn_plain, tn_rad=tn_rad, w=w, tx_model=tx_m, dz=dz, hp=hp))
+                fields=dict(tn_model=tn_m, tn_plain=tn_plain, tn_rad=tn_rad, w=w, tx_model=tx_m, dz=dz, hp=hp,
+                            inv=inv, wind_night=wind_f, cloud_night=cloud_f))
     return tn, tx, info
