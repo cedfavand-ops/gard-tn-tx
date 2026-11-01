@@ -40,6 +40,18 @@ def inversion_field(icon, grid):
     return inv, wind, cloud
 
 
+def mistral_weight(wind, mask, grid):
+    """Poids 0..1 de la correction mistral : vent nocturne fort x proximité du Rhône.
+    Le Rhône est assimilé au bord EST du département (c'est la limite administrative du Gard sur toute la vallée)."""
+    cols = np.arange(grid.nx)
+    has = mask.any(axis=1)
+    xmax = np.where(has, grid.nx - 1 - np.argmax(mask[:, ::-1], axis=1), -10 ** 6)
+    dist_m = np.clip(xmax[:, None] - cols[None, :], 0, None) * grid.res
+    near = np.exp(-dist_m / (C.MISTRAL_DIST_KM * 1000.0))
+    w0, w1 = C.MISTRAL_WIND
+    return (np.clip((wind - w0) / (w1 - w0), 0, 1) * near).astype(np.float32)
+
+
 def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
     zm = gaussian_filter(dem, C.ZM_SIGMA_M / grid.res)       # orographie « vue » par le modèle
     dz = dem - zm
@@ -48,6 +60,15 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
     tn_pts, tn_end, tn_trunc = window_stat(icon, D, C.TN_WINDOW, np.min)
     tn_m = to_grid(icon.lon, icon.lat, tn_pts, grid)
     tn_plain = tn_m + C.LAPSE_TN * dz
+    # diagnostics : Tn sur la seule nuit (21-07 UTC) et heure (UTC) du minimum de la fenêtre complète
+    t0, t1 = D + timedelta(hours=C.TN_WINDOW[0]), D + timedelta(hours=C.TN_WINDOW[1])
+    iw = [i for i, t in enumerate(icon.times) if t0 <= t <= t1]
+    hmin = np.array([icon.times[i].hour for i in iw])[icon.t2m[iw].argmin(axis=0)]
+    tn_hour = NearestNDInterpolator(np.column_stack([icon.lon, icon.lat]), hmin)(grid.LON, grid.LAT).astype(np.float32)
+    n0, n1 = D + timedelta(hours=C.NIGHT_TN_WINDOW[0]), D + timedelta(hours=C.NIGHT_TN_WINDOW[1])
+    inn = [i for i, t in enumerate(icon.times) if n0 <= t <= n1]
+    tn_night_m = (to_grid(icon.lon, icon.lat, icon.t2m[inn].min(axis=0), grid) if inn
+                  else np.full(tn_m.shape, np.nan, np.float32))
     inv, wind_f, cloud_f = inversion_field(icon, grid)
     if force_inversion is not None:
         inv = np.full_like(inv, float(force_inversion))
@@ -56,6 +77,9 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
     w = inv * w_obs
     tn_rad = tn_m + C.AMP_LST_TO_AIR * np.nan_to_num(hp)
     tn = (1 - w) * tn_plain + w * tn_rad
+    mis_s = mistral_weight(wind_f, mask, grid)
+    mis_corr = C.MISTRAL_BIAS_K * mis_s
+    tn = tn + mis_corr
 
     # --- Tx (pas d'ECOSTRESS : valeurs du modèle corrigées du relief)
     tx_pts, tx_end, tx_trunc = window_stat(icon, D, C.TX_WINDOW, np.max)
@@ -68,9 +92,10 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
     info = dict(inversion=float(np.mean(iv)), inversion_lo=float(np.percentile(iv, 10)),
                 inversion_hi=float(np.percentile(iv, 90)),
                 wind=float(np.nanmean(wind_f[mask])), cloud=float(np.nanmean(cloud_f[mask])),
-                tn_end=tn_end, tn_truncated=bool(tn_trunc),
+                mistral_max=float(np.nanmax(mis_corr[mask])), tn_end=tn_end, tn_truncated=bool(tn_trunc),
                 tx_end=tx_end, tx_truncated=bool(tx_trunc),
                 ecostress_cover=float(np.mean(obs[mask])),
                 fields=dict(tn_model=tn_m, tn_plain=tn_plain, tn_rad=tn_rad, w=w, tx_model=tx_m, dz=dz, hp=hp,
-                            inv=inv, wind_night=wind_f, cloud_night=cloud_f))
+                            inv=inv, wind_night=wind_f, cloud_night=cloud_f,
+                            tn_night_model=tn_night_m, tn_hour=tn_hour, mistral_s=mis_s, mistral_corr=mis_corr))
     return tn, tx, info

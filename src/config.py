@@ -82,3 +82,12 @@ GUST_PALETTE = [
     (244, 108, 32), (238, 75, 35), (228, 45, 45), (210, 30, 80), (180, 25, 120), (145, 25, 150),
 ]
 GUST_HIGH = (95, 20, 130)
+
+# --- Diagnostic : Tn « nocturne » (21:00 -> 07:00 UTC), archivée à côté de la Tn 18 h -> 18 h UTC
+NIGHT_TN_WINDOW = (21, 31)
+
+# --- Correction « mistral » : ICON prévoit des Tn systématiquement trop basses près du Rhône quand le vent est fort
+MISTRAL_BIAS_K = 1.25         # K : correction maximale ajoutée à la Tn (vent fort ET proche du Rhône). 0 = désactivée.
+MISTRAL_WIND = (3.0, 7.0)     # m/s : vent nocturne moyen où l'effet commence / est maximal
+MISTRAL_DIST_KM = 10.0        # distance au Rhône (bord est du département) où l'effet est divisé par e
+CAL_BOUNDS["MISTRAL_BIAS_K"] = (0.0, 4.0)

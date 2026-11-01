@@ -82,17 +82,20 @@ def load_pairs(res):
 
 def fit(m):
     out = {}
-    params = {"AMP_LST_TO_AIR": C.AMP_LST_TO_AIR, "LAPSE_TN": C.LAPSE_TN, "LAPSE_TX": C.LAPSE_TX}
+    params = {"AMP_LST_TO_AIR": C.AMP_LST_TO_AIR, "LAPSE_TN": C.LAPSE_TN, "LAPSE_TX": C.LAPSE_TX,
+              "MISTRAL_BIAS_K": C.MISTRAL_BIAS_K}
     # --- Tn : on ignore les écarts aberrants (> 8 K) et les fenêtres tronquées
-    d = m.dropna(subset=["tn_obs", "tn_model", "dz"]).copy()
+    if "mistral_s" not in m.columns:
+        m = m.assign(mistral_s=np.nan)                      # archives antérieures à la correction mistral : écartées de l'ajustement Tn
+    d = m.dropna(subset=["tn_obs", "tn_model", "dz", "mistral_s"]).copy()
     d = d[(~d.tn_truncated.astype(bool)) & ((d.tn_obs - d.tn_model).abs() < 8)].reset_index(drop=True)
     if len(d):
         w = d.w_blend.fillna(0).values; hp = d.hp.fillna(0).values; dz = d.dz.values
-        X = np.column_stack([(1 - w) * dz, w * hp]); r = (d.tn_obs - d.tn_model).values
-        names = ["LAPSE_TN", "AMP_LST_TO_AIR"]
-        b, info = _calibrate(list(d.date), X, r, names, [C.LAPSE_TN, C.AMP_LST_TO_AIR])
-        info["cas_ecostress"] = int((w > 0.3).sum())
-        params["LAPSE_TN"], params["AMP_LST_TO_AIR"] = float(b[0]), float(b[1])
+        X = np.column_stack([(1 - w) * dz, w * hp, d.mistral_s.values]); r = (d.tn_obs - d.tn_model).values
+        names = ["LAPSE_TN", "AMP_LST_TO_AIR", "MISTRAL_BIAS_K"]
+        b, info = _calibrate(list(d.date), X, r, names, [C.LAPSE_TN, C.AMP_LST_TO_AIR, C.MISTRAL_BIAS_K])
+        info["cas_ecostress"] = int((w > 0.3).sum()); info["cas_mistral"] = int((d.mistral_s > 0.3).sum())
+        params["LAPSE_TN"], params["AMP_LST_TO_AIR"], params["MISTRAL_BIAS_K"] = float(b[0]), float(b[1]), float(b[2])
         out["tn"] = info
     # --- Tx
     d = m.dropna(subset=["tx_obs", "tx_model", "dz"]).copy()

@@ -40,6 +40,10 @@ def record_forecast(D, icon, grid, tn, tx, info, dem, demo=False, stations_path=
         "tn": tn[iy, ix].round(2), "tn3": _mean3(tn, iy, ix).round(2),
         "tn_model": F["tn_model"][iy, ix].round(2), "tn_plain": F["tn_plain"][iy, ix].round(2),
         "tn_rad": F["tn_rad"][iy, ix].round(2),
+        "mistral_s": F["mistral_s"][iy, ix].round(3),                # poids mistral (vent fort x proximité du Rhône)
+        "mistral_corr": F["mistral_corr"][iy, ix].round(2),          # correction ajoutée à la Tn (K)
+        "tn_night_model": F["tn_night_model"][iy, ix].round(2),   # min ICON 21-07 UTC (diagnostic de fenêtre)
+        "tn_hour_model": F["tn_hour"][iy, ix].astype(int),         # heure UTC du minimum ICON sur 18 h -> 18 h
         "tx": tx[iy, ix].round(2), "tx3": _mean3(tx, iy, ix).round(2),
         "tx_model": F["tx_model"][iy, ix].round(2),
         "inversion": F["inv"][iy, ix].round(2),                       # indice d'inversion au pixel de la station

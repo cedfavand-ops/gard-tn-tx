@@ -124,6 +124,7 @@ def write_all(out, grid, tn, tx, mask, icon, info, D, gust=None, gust_info=None)
         inversion_hi=round(info["inversion_hi"], 2),
         wind=None if np.isnan(info["wind"]) else round(info["wind"], 1),
         cloud=None if np.isnan(info["cloud"]) else round(info["cloud"]),
+        mistral_max=round(info.get("mistral_max", 0.0), 1),
         ecostress=C.ECOSTRESS_LABEL, ecostress_cover=round(info["ecostress_cover"], 2),
         stops=[[p, list(c)] for p, c in C.STOPS],
     )
