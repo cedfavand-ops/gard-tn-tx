@@ -106,8 +106,8 @@ function info() {
     h += `${t.label} : ${fmt(t.start)} → ${fmt(t.end)}`;
     if (t.truncated) h += ` <span class="warn">(fenêtre tronquée : modèle disponible jusqu’à ${fmt(t.last)})</span>`;
     if (mode === 'tn') {
-      h += `<br>Indice d’inversion : <b>${meta.inversion}</b> (0 = aucune, 1 = nuit calme et claire)`;
-      if (meta.wind !== null) h += `<br>Vent nocturne moyen ${meta.wind} m/s, nébulosité ${meta.cloud} %`;
+      h += `<br>Indice d’inversion : <b>${meta.inversion}</b> en moyenne, de ${meta.inversion_lo} à ${meta.inversion_hi} selon les secteurs (0 = aucune, 1 = nuit calme et claire)`;
+      if (meta.wind !== null) h += `<br>Vent nocturne moyen sur le département ${meta.wind} m/s, nébulosité ${meta.cloud} %`;
       h += `<br>Structure fine d’après une thermographie ECOSTRESS du ${meta.ecostress}.`;
     } else {
       h += '<br>Valeurs du modèle corrigées du relief.';
