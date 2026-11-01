@@ -3,39 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gard – prévisions Tn / Tx / rafales du lendemain</title>
+<title>Gard – prévisions du lendemain</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   html,body,#map{height:100%;margin:0}
   body{font:13px/1.4 system-ui,sans-serif}
-  .panel{position:absolute;z-index:1000;top:10px;left:10px;width:270px;max-height:calc(100% - 20px);overflow:auto;
+  .panel{position:absolute;z-index:1000;top:10px;left:10px;width:280px;max-height:calc(100% - 20px);overflow:auto;
          background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 2px 10px rgba(0,0,0,.3);color:#222}
   .panel h1{font-size:15px;margin:0 0 10px}
-  .tabs{display:flex;gap:6px;margin-bottom:10px}
-  .tabs button{flex:1;padding:7px 0;border:1px solid #1a5bbf;border-radius:6px;background:#fff;color:#1a5bbf;font-weight:600;cursor:pointer;font-size:12px}
+  .tabs{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap}
+  .tabs button{flex:1;padding:6px 4px;border:1px solid #1a5bbf;border-radius:6px;background:#fff;color:#1a5bbf;font-weight:600;cursor:pointer;font-size:12px}
   .tabs button.on{background:#1a5bbf;color:#fff}
+  .tabs.sub button{border-color:#7a8ba8;color:#455;font-weight:500}
+  .tabs.sub button.on{background:#455;color:#fff}
   .small{font-size:12px;color:#444;margin-top:8px}
   .warn{color:#b3261e;font-weight:600}
   input[type=range]{width:100%}
   #tip{position:absolute;z-index:1100;pointer-events:none;display:none;background:rgba(20,20,20,.88);color:#fff;
        padding:3px 8px;border-radius:5px;font-size:13px;white-space:nowrap}
   .chk{display:block;margin:6px 0}
-  .leg{background:#fff;padding:6px 9px;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.3);font-size:11px;line-height:14px;color:#222}
+  .leg{background:#fff;padding:6px 9px;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.3);font-size:11px;line-height:14px;color:#222;max-width:190px}
   .leg div{display:flex;align-items:center;gap:6px}
-  .leg i{display:inline-block;width:20px;height:12px}
-  .leg b{font-size:11px;display:block;margin-bottom:3px}
-  .top{display:flex;align-items:center;gap:6px;margin-bottom:8px}
-  .top .tabs{margin:0;flex:1}
-  #tg{border:1px solid #bbb;background:#f3f4f7;border-radius:6px;padding:6px 9px;font-size:12px;cursor:pointer;color:#333}
-  .panel.min #more{display:none}
-  .panel.min .top{margin-bottom:0}
-  .leg b{cursor:pointer}
+  .leg i{display:inline-block;width:20px;height:12px;flex:none}
+  .leg b{font-size:11px;display:block;margin-bottom:3px;cursor:pointer}
   .leg.col div{display:none}
   .leg.col b{margin-bottom:0}
+  .top{display:flex;align-items:flex-start;gap:6px}
+  .top .tabs{flex:1;margin-bottom:8px}
+  #tg{border:1px solid #bbb;background:#f3f4f7;border-radius:6px;padding:6px 9px;font-size:12px;cursor:pointer;color:#333}
+  .panel.min #more{display:none}
+  .panel.min .top .tabs,.panel.min .tabs.sub{margin-bottom:0}
   @media (max-width:600px){
     .panel{width:auto;right:auto;max-width:calc(100% - 16px);top:6px;left:6px;padding:6px 8px;max-height:65vh}
     .panel h1{display:none}
-    .tabs button{flex:none;padding:6px 9px}
+    .tabs button{flex:none;padding:6px 8px}
     .leg{font-size:10px;line-height:12px;padding:4px 6px}
     .leg i{width:16px;height:10px}
   }
@@ -47,9 +48,14 @@
 <div class="panel">
   <h1>Gard – prévision du lendemain</h1>
   <div class="top">
-    <div class="tabs"><button id="b-tn" class="on">Tn</button><button id="b-tx">Tx</button><button id="b-gust" style="display:none">Rafales</button></div>
+    <div class="tabs">
+      <button id="b-tn" class="on">Tn</button><button id="b-tx">Tx</button>
+      <button id="b-gust" style="display:none">Rafales</button><button id="b-rain" style="display:none">Pluie</button>
+      <button id="b-cloud" style="display:none">Nuages</button>
+    </div>
     <button id="tg" aria-label="Afficher ou masquer les détails">Détails</button>
   </div>
+  <div class="tabs sub" id="sub" style="display:none"></div>
   <div id="more">
     <label>Opacité des couleurs<input id="op" type="range" min="0" max="1" step="0.05" value="0.8"></label>
     <label class="chk"><input type="checkbox" id="iso" checked> Isolignes (fines / épaisses)</label>
@@ -67,6 +73,8 @@ const ign = L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile
 osm.addTo(map);
 L.control.layers({'OpenStreetMap': osm, 'Plan IGN': ign}, null, {position: 'topright'}).addTo(map);
 
+const small = window.matchMedia('(max-width:600px)').matches;
+let legCollapsed = small;
 const leg = L.control({position: 'bottomright'});
 leg.onAdd = () => {
   const d = L.DomUtil.create('div', 'leg'); d.style.display = 'none';
@@ -76,25 +84,40 @@ leg.onAdd = () => {
 };
 leg.addTo(map);
 
-const small = window.matchMedia('(max-width:600px)').matches;
-let legCollapsed = small;
-let meta, mode = 'tn', overlay = null, vals = null, isoLayer = null;
+let meta, mode = 'tn', ch = 12, overlay = null, vals = null, isoLayer = null;
 const $ = id => document.getElementById(id);
+const MODES = ['tn', 'tx', 'gust', 'rain', 'cloud'];
+const key = () => mode === 'cloud' ? 'cloud' + ch : mode;
 const fmt = (iso, tz) => new Date(iso).toLocaleString('fr-FR', {weekday: 'short', day: '2-digit', month: '2-digit',
   hour: '2-digit', minute: '2-digit', timeZone: tz || 'UTC'}) + (tz ? '' : ' UTC');
+const fmtDay = (iso, tz) => new Date(iso).toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long', timeZone: tz});
 const merc = la => Math.log(Math.tan(Math.PI / 4 + la * Math.PI / 360));
+const num = (sc, v) => sc.dec === null ? String(v) : v.toFixed(sc.dec);
+
+function setArrow() { const a = document.getElementById('arr'); if (a) a.textContent = legCollapsed ? '▸' : '▾'; }
+
+function legendHtml(sc) {
+  if (mode === 'cloud') {
+    const sw = (c, t, b) => `<div><i style="background:rgb(${c})${b ? ';border:1px solid #bbb' : ''}"></i>${t}</div>`;
+    return `<b>Nuages ${ch} h <span id="arr"></span></b>` + sw('255,0,0', 'bas') + sw('0,255,0', 'moyens') + sw('0,0,255', 'élevés')
+      + sw('255,255,255', 'plusieurs couches', true) + '<div style="color:#555">Couleur vive = couverture forte</div>';
+  }
+  return `<b>${sc.label} (${sc.unit}) <span id="arr"></span></b>` + sc.classes.slice().reverse().map(c =>
+    `<div><i style="background:rgb(${c.rgb.join(',')})"></i>${c.b === null ? '≥ ' + num(sc, c.a) : num(sc, c.a) + ' – ' + num(sc, c.b)}</div>`).join('');
+}
 
 function setMode(m) {
   mode = m;
-  ['tn', 'tx', 'gust'].forEach(k => $('b-' + k).classList.toggle('on', k === m));
-  const [w, s, e, n] = meta.bounds, sc = meta[m];
+  MODES.forEach(k => $('b-' + k).classList.toggle('on', k === m));
+  $('sub').style.display = m === 'cloud' ? '' : 'none';
+  if (m === 'cloud') [...$('sub').children].forEach(b => b.classList.toggle('on', +b.dataset.h === ch));
+  const [w, s, e, n] = meta.bounds, k = key(), sc = meta[m === 'cloud' ? 'clouds' : m];
   if (overlay) map.removeLayer(overlay);
-  overlay = L.imageOverlay(m + '.png?' + meta.generated, [[s, w], [n, e]], {opacity: +$('op').value}).addTo(map);
+  overlay = L.imageOverlay(k + '.png?' + meta.generated, [[s, w], [n, e]], {opacity: +$('op').value}).addTo(map);
   const ld = leg.getContainer();
   ld.style.display = '';
   ld.classList.toggle('col', legCollapsed);
-  ld.innerHTML = `<b>${sc.label} (${sc.unit}) <span id="arr"></span></b>` + sc.classes.slice().reverse().map(c =>
-    `<div><i style="background:rgb(${c.rgb.join(',')})"></i>${c.a.toFixed(sc.dec)} – ${c.b.toFixed(sc.dec)}</div>`).join('');
+  ld.innerHTML = legendHtml(sc);
   setArrow();
   vals = null;
   loadIso();
@@ -104,15 +127,13 @@ function setMode(m) {
     const g = c.getContext('2d', {willReadFrequently: true}); g.drawImage(img, 0, 0);
     vals = {w: img.width, h: img.height, d: g.getImageData(0, 0, img.width, img.height).data};
   };
-  img.src = m + '_val.png?' + meta.generated;
+  img.src = k + '_val.png?' + meta.generated;
   info();
 }
 
-function setArrow() { const a = document.getElementById('arr'); if (a) a.textContent = legCollapsed ? '▸' : '▾'; }
-
 function loadIso() {
   if (isoLayer) { map.removeLayer(isoLayer); isoLayer = null; }
-  if (!$('iso').checked) return;
+  if (!$('iso').checked || mode === 'cloud') return;
   const m = mode, unit = meta[m].unit;
   fetch(m + '_iso.geojson?' + meta.generated).then(r => r.json()).then(g => {
     if (m !== mode || !$('iso').checked) return;
@@ -125,14 +146,24 @@ function loadIso() {
 }
 
 function info() {
-  const t = meta[mode];
   let h = `Run ICON-CH1 de ${fmt(meta.run)}<br>`;
   if (mode === 'gust') {
+    const t = meta.gust;
     h += `Rafale maximale du ${fmt(t.start, t.tz)} au ${fmt(t.end, t.tz)} (heure de Paris)`;
     if (t.truncated) h += ` <span class="warn">(tronquée : modèle disponible jusqu’à ${fmt(t.last, t.tz)})</span>`;
     h += `<br>Vent dominant au moment du maximum : <b>${t.dir_name}</b> (${t.dir_deg}°)`;
     h += '<br>Rafale ICON-CH1 corrigée de l’exposition au vent (relief et abri). <b>Expérimental</b> : coefficients non encore calés sur les stations.';
+  } else if (mode === 'rain') {
+    const t = meta.rain;
+    h += `Cumul de précipitations du ${fmt(t.start, t.tz)} au ${fmt(t.end, t.tz)} (heure de Paris)`;
+    if (t.truncated) h += ` <span class="warn">(tronqué : modèle disponible jusqu’à ${fmt(t.last, t.tz)})</span>`;
+    h += '<br>Valeur d’un seul membre du modèle (membre de contrôle), non corrigée du relief à 150 m : la localisation exacte des averses est très incertaine.';
+  } else if (mode === 'cloud') {
+    const t = meta.clouds;
+    h += `Nuages prévus à <b>${ch} h</b> (heure de Paris), ${fmtDay(t.times[ch], t.tz)}`;
+    h += '<br>Rouge : nuages bas · vert : nuages moyens · bleu : nuages élevés. Les mélanges donnent des teintes intermédiaires (blanc : plusieurs étages nuageux). Valeurs du modèle, sans correction fine.';
   } else {
+    const t = meta[mode];
     h += `${t.label} : ${fmt(t.start)} → ${fmt(t.end)}`;
     if (t.truncated) h += ` <span class="warn">(fenêtre tronquée : modèle disponible jusqu’à ${fmt(t.last)})</span>`;
     if (mode === 'tn') {
@@ -149,24 +180,35 @@ function info() {
   $('info').innerHTML = h;
 }
 
-function valueAt(ll) {
+function rawAt(ll) {
   if (!vals) return null;
   const [w, s, east, n] = meta.bounds;
   const x = Math.floor((ll.lng - w) / (east - w) * vals.w);
   const y = Math.floor((merc(n) - merc(ll.lat)) / (merc(n) - merc(s)) * vals.h);
   if (x < 0 || y < 0 || x >= vals.w || y >= vals.h) return null;
-  const i = (y * vals.w + x) * 4, q = vals.d[i] * 256 + vals.d[i + 1];
-  return q > 0 ? q / 100 - 50 : null;
+  const i = (y * vals.w + x) * 4;
+  return [vals.d[i], vals.d[i + 1], vals.d[i + 2]];
 }
-const txt = v => { const sc = meta[mode]; return `${sc.label} ${v.toFixed(sc.dec)} ${sc.unit}`; };
+function textAt(ll) {
+  const r = rawAt(ll);
+  if (!r) return null;
+  if (mode === 'cloud') {
+    if (r[0] === 255 && r[1] === 255 && r[2] === 255) return null;
+    return `Bas ${r[0]} % · Moyens ${r[1]} % · Élevés ${r[2]} %`;
+  }
+  const q = r[0] * 256 + r[1];
+  if (q <= 0) return null;
+  const sc = meta[mode], v = q / 100 - 50;
+  return `${sc.label} ${v.toFixed(sc.dec === null ? 1 : sc.dec)} ${sc.unit}`;
+}
 const tip = $('tip'); let raf = null;
 map.on('mousemove', e => {
   if (raf) return;
   raf = requestAnimationFrame(() => {
     raf = null;
-    const v = valueAt(e.latlng);
-    if (v === null) { tip.style.display = 'none'; return; }
-    tip.textContent = txt(v);
+    const t = textAt(e.latlng);
+    if (t === null) { tip.style.display = 'none'; return; }
+    tip.textContent = t;
     tip.style.left = (e.originalEvent.clientX + 14) + 'px';
     tip.style.top = (e.originalEvent.clientY + 14) + 'px';
     tip.style.display = 'block';
@@ -174,8 +216,8 @@ map.on('mousemove', e => {
 });
 map.on('mouseout', () => tip.style.display = 'none');
 map.on('click', e => {            // tactile : pas de survol, on affiche la valeur au toucher
-  const v = valueAt(e.latlng);
-  L.popup().setLatLng(e.latlng).setContent(v === null ? 'Hors zone' : `<b>${txt(v)}</b>`).openOn(map);
+  const t = textAt(e.latlng);
+  L.popup().setLatLng(e.latlng).setContent(t === null ? 'Hors zone' : `<b>${t}</b>`).openOn(map);
 });
 
 const panel = document.querySelector('.panel');
@@ -185,11 +227,21 @@ $('tg').onclick = () => { panel.classList.toggle('min'); syncTg(); };
 syncTg();
 $('op').oninput = () => overlay && overlay.setOpacity(+$('op').value);
 $('iso').onchange = () => meta && loadIso();
-['tn', 'tx', 'gust'].forEach(k => $('b-' + k).onclick = () => meta && setMode(k));
+MODES.forEach(k => $('b-' + k).onclick = () => meta && setMode(k));
 
 fetch('meta.json?' + Date.now()).then(r => r.json()).then(m => {
   meta = m;
   if (m.gust) $('b-gust').style.display = '';
+  if (m.rain) $('b-rain').style.display = '';
+  if (m.clouds) {
+    $('b-cloud').style.display = '';
+    if (!m.clouds.hours.includes(ch)) ch = m.clouds.hours[0];
+    m.clouds.hours.forEach(h => {
+      const b = document.createElement('button'); b.textContent = h + ' h'; b.dataset.h = h;
+      b.onclick = () => { ch = h; setMode('cloud'); };
+      $('sub').appendChild(b);
+    });
+  }
   setMode('tn');
 }).catch(() => $('info').textContent = 'Prévision indisponible.');
 </script>
