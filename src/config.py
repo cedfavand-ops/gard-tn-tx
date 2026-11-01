@@ -91,3 +91,16 @@ MISTRAL_BIAS_K = 1.25         # K : correction maximale ajoutée à la Tn (vent 
 MISTRAL_WIND = (3.0, 7.0)     # m/s : vent nocturne moyen où l'effet commence / est maximal
 MISTRAL_DIST_KM = 10.0        # distance au Rhône (bord est du département) où l'effet est divisé par e
 CAL_BOUNDS["MISTRAL_BIAS_K"] = (0.0, 4.0)
+
+# --- Pluie : cumul sur le jour civil de demain (heure de Paris, 00:00 -> 24:00), seuils fixes en mm
+RAIN_EDGES = [0.1, 0.5, 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 40, 50, 75, 100, 150, 200]   # en dessous de 0,1 mm : transparent
+RAIN_PALETTE = [   # bleu pâle -> bleu foncé -> violet ; une couleur par classe (16 intervalles + la classe >= 200 mm)
+    (222, 238, 252), (196, 224, 248), (165, 206, 243), (132, 186, 238), (98, 163, 232), (68, 138, 224),
+    (45, 112, 210), (30, 88, 190), (24, 66, 168), (26, 48, 146), (40, 36, 128), (70, 34, 142),
+    (105, 38, 160), (140, 48, 176), (172, 66, 190), (200, 95, 205), (225, 140, 225),
+]
+RAIN_ISO_LEVELS = [0.5, 1, 2, 5, 10, 20, 50, 100]
+RAIN_ISO_MAJOR = [1, 10, 50]
+
+# --- Nuages : heures locales (Paris) de demain ; rouge = nuages bas, vert = moyens, bleu = élevés
+CLOUD_HOURS_LOCAL = (9, 12, 15)

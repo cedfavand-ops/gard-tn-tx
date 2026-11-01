@@ -46,6 +46,16 @@ def main():
     out = [f"# Vérification Tn/Tx – stations du Gard\n", f"{m.date.nunique()} jours, {len(m)} couples station-jour. "
            "Biais = prévision − observation (°C).\n"]
     cols_tn = {"tn_model": "tn_obs", "tn_plain": "tn_obs", "tn": "tn_obs"}
+    diag = []
+    if {"tn_night_obs", "tn_night_model"} <= set(tn.columns):
+        nn = tn.dropna(subset=["tn_night_obs", "tn_night_model"]).copy()
+        if len(nn):
+            diag = ["## Diagnostic de fenêtre : Tn 18 h -> 18 h UTC contre Tn de nuit (21 h -> 07 h UTC)\n",
+                    _table(tn.assign(fenetre="18h-18h UTC"), "fenetre", {"tn_model": "tn_obs", "tn": "tn_obs"}), "",
+                    _table(nn.assign(fenetre="nuit 21h-07h UTC"), "fenetre", {"tn_night_model": "tn_night_obs"}), "",
+                    "Si l'erreur sur 18 h-18 h est nettement plus forte que sur la nuit, le minimum du modèle tombe en soirée "
+                    "ou en fin de fenêtre, pas au petit matin.\n"]
+    out += diag
     out += ["## Tn par situation (conditions observées de la nuit)\n", _table(tn, "situation", cols_tn), "",
             "## Tn par classe d'altitude\n", _table(tn, "alt_cls", cols_tn), "",
             "Colonnes : `tn_model` = valeur brute ICON ; `tn_plain` = corrigée de l'altitude seule ; `tn` = carte publiée.\n"]
@@ -62,6 +72,12 @@ def main():
                     "## Rafales maximales par vent nocturne observé\n", _table(gg, "vent_cls", cols_g), "",
                     "`gust_model` = ICON brut ; `gust` = carte publiée (corrigée de l'exposition). "
                     "Les coefficients `GUST_Z_GAIN` et `GUST_SX_GAIN` se règlent à la main sur ce tableau.\n"]
+    if "rain_obs" in m.columns and "rain" in m.columns:
+        rr = m.dropna(subset=["rain_obs", "rain"]).copy()
+        if len(rr):
+            rr["pluie_obs"] = pd.cut(rr.rain_obs, [-1, 0.1, 2, 10, 1000], labels=["sec (<0,1 mm)", "faible (0,1-2)", "modérée (2-10)", "forte (>10)"])
+            out += ["## Pluie du jour civil de demain (mm) selon le cumul observé\n", _table(rr, "pluie_obs", {"rain": "rain_obs"}), "",
+                    "Prévision d'un seul membre d'ICON, au pixel de la station : un fort écart sur un jour d'averses est attendu.\n"]
     out.append("## Réglages suggérés (à examiner, pas à appliquer à l'aveugle)\n")
     rad = tn[(tn.inversion >= 0.7) & (tn.wind < 2) & (tn.cloud < 25) & tn.hp.notna()]
     if len(rad) >= MIN_N and (rad.hp ** 2).sum() > 0:

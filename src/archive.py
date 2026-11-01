@@ -49,6 +49,7 @@ def record_forecast(D, icon, grid, tn, tx, info, dem, demo=False, stations_path=
         "inversion": F["inv"][iy, ix].round(2),                       # indice d'inversion au pixel de la station
         "wind_pred": F["wind_night"][iy, ix].round(1), "cloud_pred": F["cloud_night"][iy, ix].round(0),
         "tn_truncated": info["tn_truncated"], "tx_truncated": info["tx_truncated"],
+        "rain": F["rain"][iy, ix].round(1) if "rain" in F else np.nan,            # mm, jour civil de demain
         "gust": F["gust"][iy, ix].round(1) if "gust" in F else np.nan,              # km/h
         "gust_model": F["gust_model"][iy, ix].round(1) if "gust_model" in F else np.nan,
         "gust_factor": F["gust_factor"][iy, ix].round(2) if "gust_factor" in F else np.nan,

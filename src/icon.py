@@ -23,6 +23,9 @@ class IconData:
     uv_times: object = None       # échéances (toutes les 3 h) du vent moyen pour la direction
     u10: object = None
     v10: object = None
+    rain: object = None           # (npts,) cumul de pluie en mm sur le jour civil de demain
+    rain_meta: object = None      # dict(start, end, last, truncated)
+    clouds: object = None         # {heure locale: dict(time, low, mid, high)} en %
 
 
 def day_start(now):
@@ -46,7 +49,7 @@ def demo_icon(now, seed=1):
     diurnal = 4.5 * np.cos((h - 14) * 2 * np.pi / 24)          # max 14 h, min 2 h
     t2m = 6 - 0.0065 * z[None, :] + diurnal[:, None] + 0.3 * rng.standard_normal((1, n))
     nt = [t for t in times if C.NIGHT_WINDOW[0] <= (t - D).total_seconds() / 3600 <= C.NIGHT_WINDOW[1]]
-    wind = np.full((len(nt), n), 1.3) + 0.2 * rng.standard_normal((len(nt), n))
+    wind = (1.3 + 7.0 / (1 + np.exp(-(lon - 4.25) / 0.08)))[None, :] + 0.2 * rng.standard_normal((len(nt), n))   # mistral fort à l'est
     cloud = np.full((len(nt), n), 39.0)
     from .timewin import gust_valid_times
     gt = gust_valid_times(D)
@@ -58,8 +61,21 @@ def demo_icon(now, seed=1):
     w = (amp[::3] * 0.55)[:, None] * np.ones((1, n))
     phi = np.radians(330.0)                                     # mistral (vent de nord-nord-ouest)
     u10, v10 = -w * np.sin(phi), -w * np.cos(phi)
+    from .timewin import gust_window_utc, local_utc
+    gs, ge = gust_window_utc(D)
+    rain = 2 + 28 * np.exp(-(((lon - 3.6) / .3) ** 2 + ((lat - 44.2) / .25) ** 2)) \
+        + 12 * np.exp(-(((lon - 4.3) / .15) ** 2 + ((lat - 43.9) / .1) ** 2)) + rng.gamma(2, 0.2, n)
+    rain[lon > 4.5] *= 0.05                                    # est sec (mistral)
+    clouds = {}
+    for hh in C.CLOUD_HOURS_LOCAL:
+        ph = (hh - 9) / 3.0
+        clouds[hh] = dict(time=local_utc(D, hh),
+                          low=np.clip(70 * np.exp(-(((lon - 3.7 - .2 * ph) / .35) ** 2 + ((lat - 44.1) / .3) ** 2)) + 5, 0, 100),
+                          mid=np.clip(60 * np.exp(-(((lon - 4.0) / .5) ** 2 + ((lat - 43.7 - .1 * ph) / .25) ** 2)) + 3, 0, 100),
+                          high=np.clip(40 + 40 * np.sin(lon * 3) * np.cos(lat * 4) + 8 * ph, 0, 100))
     return IconData(run, times, lon, lat, t2m, wind, cloud, nt, demo=True,
-                    gust=gust, gust_times=gt, uv_times=uvt, u10=u10, v10=v10)
+                    gust=gust, gust_times=gt, uv_times=uvt, u10=u10, v10=v10,
+                    rain=rain, rain_meta=dict(start=gs, end=ge, last=ge, truncated=False), clouds=clouds)
 
 
 # ------------------------------------------------------------------ RÉEL
@@ -168,11 +184,13 @@ def _fetch_run(ogd_api, run, D):
             break
     print(f"[ICON] terminé : {len(times)} échéances de température, {len(ntimes)} nocturnes", flush=True)
     icon = IconData(run, times, lon, lat, np.array(t2m), np.array(wind), np.array(cloud), ntimes, sel=sel)
-    try:
-        _fetch_gust(ogd_api, icon, run, D)
-    except Exception as e:                       # les rafales ne doivent jamais bloquer les cartes de température
-        print(f"[ICON] rafales indisponibles : {e!r}", flush=True)
-        icon.gust = None
+    for name, fn in (("rafales", _fetch_gust), ("pluie", _fetch_rain), ("nuages", _fetch_clouds)):
+        try:
+            fn(ogd_api, icon, run, D)
+        except Exception as e:                   # ces cartes ne doivent jamais bloquer les cartes de température
+            print(f"[ICON] {name} indisponibles : {e!r}", flush=True)
+            if name == "rafales":
+                icon.gust = None
     return icon
 
 
@@ -213,3 +231,56 @@ def _fetch_gust(ogd_api, icon, run, D):
         raise RuntimeError("U_10M / V_10M introuvables pour la direction du vent")
     icon.gust, icon.gust_times = gust, gt
     icon.uv_times, icon.u10, icon.v10 = uvt, np.array(u), np.array(v)
+
+
+def _fetch_rain(ogd_api, icon, run, D):
+    """Cumul TOT_PREC (mm depuis le début du run) sur le jour civil local de demain.
+    Run principal jusqu'à son horizon (+33 h, +45 h pour 03 UTC), puis run de 03 UTC pour le reste de la journée."""
+    from .timewin import gust_window_utc
+    s, e = gust_window_utc(D)
+    alt = D.replace(hour=3)
+
+    def P(r, t):
+        lead = int((t - r).total_seconds() // 3600)
+        if lead < 0:
+            return None
+        try:
+            return _field(ogd_api, "TOT_PREC", r, lead)[0][icon.sel]
+        except Exception:
+            return None
+
+    p_s = P(run, s)
+    if p_s is None:
+        raise RuntimeError("TOT_PREC introuvable au début de la journée")
+    ta, p_a = min(e, run + timedelta(hours=45 if run.hour == 3 else 33)), None
+    for k in range(4):
+        p_a = P(run, ta - timedelta(hours=k))
+        if p_a is not None:
+            ta = ta - timedelta(hours=k)
+            break
+    if p_a is None:
+        raise RuntimeError("TOT_PREC introuvable en fin de run")
+    total, last = p_a - p_s, ta
+    if ta < e and alt != run:
+        a2, e2 = P(alt, ta), P(alt, e)
+        if a2 is not None and e2 is not None:
+            total, last = total + (e2 - a2), e
+    icon.rain = np.clip(total, 0, None)
+    icon.rain_meta = dict(start=s, end=e, last=last, truncated=bool(last < e - timedelta(hours=1)))
+    print(f"[ICON] pluie : cumul jusqu'à {last:%d/%m %H}Z, max {np.nanmax(icon.rain):.1f} mm", flush=True)
+
+
+def _fetch_clouds(ogd_api, icon, run, D):
+    from .timewin import local_utc
+    alt = D.replace(hour=3)
+    runs = [run] + ([alt] if alt != run else [])
+    out = {}
+    for hh in C.CLOUD_HOURS_LOCAL:
+        t = local_utc(D, hh)
+        vals = [_get_any(ogd_api, v, runs, t, icon.sel) for v in ("CLCL", "CLCM", "CLCH")]
+        if all(v is not None for v in vals):
+            out[hh] = dict(time=t, low=np.clip(vals[0], 0, 100), mid=np.clip(vals[1], 0, 100), high=np.clip(vals[2], 0, 100))
+            print(f"[ICON] nuages {hh} h locales ok", flush=True)
+    if not out:
+        raise RuntimeError("CLCL/CLCM/CLCH introuvables")
+    icon.clouds = out

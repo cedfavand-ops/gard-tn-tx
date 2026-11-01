@@ -10,6 +10,7 @@ from .render import write_all
 from .archive import record_forecast
 from . import calibration
 from .wind import sx_stack, compute_gust
+from .extra import compute_rain, compute_clouds
 
 
 def main():
@@ -38,7 +39,17 @@ def main():
         except Exception as e:
             print(f"[RAFALES] calcul impossible : {e!r}", flush=True)
             gust = ginfo = None
-    write_all(a.out, grid, tn, tx, mask, icon, info, D, gust, ginfo)
+    rain = rinfo = clouds = None
+    for name in ("pluie", "nuages"):
+        try:
+            if name == "pluie" and icon.rain is not None:
+                rain, rinfo = compute_rain(icon, mask, grid)
+                info["fields"]["rain"] = rain
+            elif name == "nuages" and icon.clouds:
+                clouds = compute_clouds(icon, mask, grid)
+        except Exception as e:
+            print(f"[{name.upper()}] calcul impossible : {e!r}", flush=True)
+    write_all(a.out, grid, tn, tx, mask, icon, info, D, gust, ginfo, rain, rinfo, clouds)
     record_forecast(D, icon, grid, tn, tx, info, dem, demo=a.demo)
     shutil.copy("web/index.html", f"{a.out}/index.html")
     print(f"OK run={icon.run:%Y-%m-%d %H}Z inversion={info['inversion']:.2f} "

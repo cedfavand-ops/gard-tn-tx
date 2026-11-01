@@ -52,11 +52,11 @@ def read_hourly(src):
     df["time"] = pd.to_datetime(df["AAAAMMJJHH"].astype(str), format="%Y%m%d%H", utc=True)
     df["NUM_POSTE"] = df["NUM_POSTE"].astype(str).str.zfill(8)
     for c in df.columns:
-        if c in ("T", "TN", "TX", "FF", "FXI", "FXI3S", "FXY", "NEB", "N", "LAT", "LON", "ALTI"):
+        if c in ("T", "TN", "TX", "FF", "FXI", "FXI3S", "FXY", "RR1", "NEB", "N", "LAT", "LON", "ALTI"):
             df[c] = pd.to_numeric(df[c], errors="coerce")
         # données douteuses (qualité 2) écartées si la colonne de qualité existe
         q = "Q" + c
-        if q in df.columns and c in ("T", "TN", "TX", "FF", "FXI", "FXI3S", "FXY", "NEB", "N"):
+        if q in df.columns and c in ("T", "TN", "TX", "FF", "FXI", "FXI3S", "FXY", "RR1", "NEB", "N"):
             df.loc[pd.to_numeric(df[q], errors="coerce") == 2, c] = np.nan
     return df
 
@@ -92,14 +92,19 @@ def day_obs(df, D):
         w2 = g[(g.time >= t(C.TX_WINDOW[0])) & (g.time <= t(C.TX_WINDOW[1]))]
         wn = g[(g.time >= t(C.NIGHT_WINDOW[0])) & (g.time <= t(C.NIGHT_WINDOW[1]))]
         n1, n2 = w1[tn_c].notna().sum(), w2[tx_c].notna().sum()
+        wnn = g[(g.time >= t(C.NIGHT_TN_WINDOW[0])) & (g.time <= t(C.NIGHT_TN_WINDOW[1]))]
         wg = g[(g.time > gs) & (g.time <= ge)]
         ng = int(wg[gcol].notna().sum()) if gcol else 0
+        nr = int(wg['RR1'].notna().sum()) if 'RR1' in wg.columns else 0
         cloud = wn[cld].mean() if cld and wn[cld].notna().sum() >= 5 else np.nan
         if cld and cloud == cloud and wn[cld].max() <= 8:
             cloud *= 12.5                          # octas -> %
         out.append(dict(date=D.strftime("%Y-%m-%d"), id=pid,
                         tn_obs=w1[tn_c].min() if n1 >= 20 else np.nan, n_tn=int(n1),
                         tx_obs=w2[tx_c].max() if n2 >= 20 else np.nan, n_tx=int(n2),
+                        tn_night_obs=wnn[tn_c].min() if wnn[tn_c].notna().sum() >= 10 else np.nan,
+                        tn_hour_obs=(int(w1.loc[w1[tn_c].idxmin(), 'time'].hour) if n1 >= 20 else np.nan),
+                        rain_obs=wg['RR1'].sum() if nr >= 20 else np.nan,
                         gust_obs=wg[gcol].max() * 3.6 if gcol and ng >= 20 else np.nan, n_gust=ng,
                         wind_obs=wn[wnd].mean() if wnd and wn[wnd].notna().sum() >= 5 else np.nan,
                         cloud_obs=cloud))

@@ -18,3 +18,10 @@ def gust_valid_times(D):
     s, e = gust_window_utc(D)
     n = int(round((e - s).total_seconds() / 3600))
     return [s + timedelta(hours=k) for k in range(1, n + 1)]
+
+
+def local_utc(D, hour):
+    """Instant UTC de l'heure locale `hour` de demain (D = minuit UTC du jour de la prévision)."""
+    tz = ZoneInfo(C.GUST_TZ)
+    day = (D + timedelta(days=1)).date()
+    return datetime(day.year, day.month, day.day, hour, tzinfo=tz).astimezone(timezone.utc)

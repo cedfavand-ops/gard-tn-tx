@@ -115,7 +115,39 @@ def _render_field(out, name, a, grid):
                 lo=float(lo), hi=float(hi), classes=classes)
 
 
-def write_all(out, grid, tn, tx, mask, icon, info, D, gust=None, gust_info=None):
+def _render_rain(out, rain, grid):
+    """Seuils fixes (mm), transparent sous 0,1 mm. Une couleur par classe : bleu pâle -> bleu foncé -> violet."""
+    edges = np.array(C.RAIN_EDGES, float)
+    am = to_mercator(rain, grid)
+    idx = np.digitize(np.nan_to_num(am, nan=0.0), edges)            # 0 = sous 0,1 mm
+    pal = np.vstack([[0, 0, 0], np.array(C.RAIN_PALETTE, float)]).astype(np.uint8)
+    img = np.zeros(am.shape + (4,), np.uint8)
+    img[..., :3] = pal[idx]
+    img[..., 3] = np.where(np.isfinite(am) & (idx > 0), 255, 0)
+    Image.fromarray(img, "RGBA").save(f"{out}/rain.png", optimize=True)
+    Image.fromarray(value_png(am), "RGB").save(f"{out}/rain_val.png", optimize=True)
+    n = isolines(rain, grid, f"{out}/rain_iso.geojson", levels=C.RAIN_ISO_LEVELS, major_levels=C.RAIN_ISO_MAJOR)
+    print(f"[RENDU] rain: {n} isolignes, max {np.nanmax(rain):.1f} mm", flush=True)
+    classes = [dict(a=float(edges[k]), b=(float(edges[k + 1]) if k + 1 < len(edges) else None), rgb=[int(x) for x in pal[k + 1]])
+               for k in range(len(edges))]
+    return dict(label="Pluie", unit="mm", dec=None, classes=classes, vmin=0.0, vmax=float(np.nanmax(rain)))
+
+
+def _render_clouds(out, hh, c, grid):
+    """Composite : rouge = nuages bas, vert = moyens, bleu = élevés (teinte), opacité = couverture la plus forte."""
+    low, mid, high = (to_mercator(c[k], grid) for k in ("low", "mid", "high"))
+    L = np.stack([np.nan_to_num(low), np.nan_to_num(mid), np.nan_to_num(high)], axis=-1) / 100.0
+    mx = L.max(axis=-1)
+    img = np.zeros(low.shape + (4,), np.uint8)
+    img[..., :3] = np.round(255 * L / np.maximum(mx, 1e-6)[..., None])            # teinte = proportions des 3 couches
+    img[..., 3] = np.where(np.isfinite(low), np.round(255 * np.clip(mx * 1.15, 0, 1) ** 0.8), 0)
+    Image.fromarray(img, "RGBA").save(f"{out}/cloud{hh}.png", optimize=True)
+    val = np.round(L * 100).astype(np.uint8)                                      # 0..100 par couche, 255 = hors zone
+    val[~np.isfinite(low)] = 255
+    Image.fromarray(val, "RGB").save(f"{out}/cloud{hh}_val.png", optimize=True)
+
+
+def write_all(out, grid, tn, tx, mask, icon, info, D, gust=None, gust_info=None, rain=None, rain_info=None, clouds=None):
     iso = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")
     meta = dict(
         generated=iso(datetime.now(timezone.utc)),
@@ -139,5 +171,14 @@ def write_all(out, grid, tn, tx, mask, icon, info, D, gust=None, gust_info=None)
         meta["gust"] = dict(_render_field(out, "gust", gust, grid), start=iso(g["start"]), end=iso(g["end"]),
                             last=iso(g["last"]), truncated=g["truncated"], dir_deg=round(g["dir_deg"]),
                             dir_name=g["dir_name"], tz=C.GUST_TZ)
+    if rain is not None:
+        ri = rain_info
+        meta["rain"] = dict(_render_rain(out, rain, grid), start=iso(ri["start"]), end=iso(ri["end"]), last=iso(ri["last"]),
+                            truncated=ri["truncated"], tz=C.GUST_TZ)
+    if clouds:
+        for hh, c in clouds.items():
+            _render_clouds(out, hh, c, grid)
+        meta["clouds"] = dict(label="Nuages", tz=C.GUST_TZ, hours=sorted(clouds), times={str(h): iso(c["time"]) for h, c in clouds.items()})
+        print(f"[RENDU] nuages : {sorted(clouds)} h locales", flush=True)
     with open(f"{out}/meta.json", "w") as f:
         json.dump(meta, f, indent=1)
