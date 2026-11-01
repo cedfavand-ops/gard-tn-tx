@@ -24,7 +24,21 @@
   .leg div{display:flex;align-items:center;gap:6px}
   .leg i{display:inline-block;width:20px;height:12px}
   .leg b{font-size:11px;display:block;margin-bottom:3px}
-  @media (max-width:600px){.panel{width:auto;right:10px}}
+  .top{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .top .tabs{margin:0;flex:1}
+  #tg{border:1px solid #bbb;background:#f3f4f7;border-radius:6px;padding:6px 9px;font-size:12px;cursor:pointer;color:#333}
+  .panel.min #more{display:none}
+  .panel.min .top{margin-bottom:0}
+  .leg b{cursor:pointer}
+  .leg.col div{display:none}
+  .leg.col b{margin-bottom:0}
+  @media (max-width:600px){
+    .panel{width:auto;right:auto;max-width:calc(100% - 16px);top:6px;left:6px;padding:6px 8px;max-height:65vh}
+    .panel h1{display:none}
+    .tabs button{flex:none;padding:6px 9px}
+    .leg{font-size:10px;line-height:12px;padding:4px 6px}
+    .leg i{width:16px;height:10px}
+  }
 </style>
 </head>
 <body>
@@ -32,11 +46,16 @@
 <div id="tip"></div>
 <div class="panel">
   <h1>Gard – prévision du lendemain</h1>
-  <div class="tabs"><button id="b-tn" class="on">Tn (nuit)</button><button id="b-tx">Tx (jour)</button><button id="b-gust" style="display:none">Rafales</button></div>
-  <label>Opacité des couleurs<input id="op" type="range" min="0" max="1" step="0.05" value="0.8"></label>
-  <label class="chk"><input type="checkbox" id="iso" checked> Isolignes (fines / épaisses)</label>
-  <div class="small" id="info">Chargement…</div>
-  <div class="small">Survolez la carte (ou touchez-la) pour lire la valeur.</div>
+  <div class="top">
+    <div class="tabs"><button id="b-tn" class="on">Tn</button><button id="b-tx">Tx</button><button id="b-gust" style="display:none">Rafales</button></div>
+    <button id="tg" aria-label="Afficher ou masquer les détails">Détails</button>
+  </div>
+  <div id="more">
+    <label>Opacité des couleurs<input id="op" type="range" min="0" max="1" step="0.05" value="0.8"></label>
+    <label class="chk"><input type="checkbox" id="iso" checked> Isolignes (fines / épaisses)</label>
+    <div class="small" id="info">Chargement…</div>
+    <div class="small">Survolez la carte (ou touchez-la) pour lire la valeur.</div>
+  </div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -49,9 +68,16 @@ osm.addTo(map);
 L.control.layers({'OpenStreetMap': osm, 'Plan IGN': ign}, null, {position: 'topright'}).addTo(map);
 
 const leg = L.control({position: 'bottomright'});
-leg.onAdd = () => { const d = L.DomUtil.create('div', 'leg'); d.style.display = 'none'; return d; };
+leg.onAdd = () => {
+  const d = L.DomUtil.create('div', 'leg'); d.style.display = 'none';
+  L.DomEvent.disableClickPropagation(d);
+  d.addEventListener('click', () => { legCollapsed = !legCollapsed; d.classList.toggle('col', legCollapsed); setArrow(); });
+  return d;
+};
 leg.addTo(map);
 
+const small = window.matchMedia('(max-width:600px)').matches;
+let legCollapsed = small;
 let meta, mode = 'tn', overlay = null, vals = null, isoLayer = null;
 const $ = id => document.getElementById(id);
 const fmt = (iso, tz) => new Date(iso).toLocaleString('fr-FR', {weekday: 'short', day: '2-digit', month: '2-digit',
@@ -66,8 +92,10 @@ function setMode(m) {
   overlay = L.imageOverlay(m + '.png?' + meta.generated, [[s, w], [n, e]], {opacity: +$('op').value}).addTo(map);
   const ld = leg.getContainer();
   ld.style.display = '';
-  ld.innerHTML = `<b>${sc.label} (${sc.unit})</b>` + sc.classes.slice().reverse().map(c =>
+  ld.classList.toggle('col', legCollapsed);
+  ld.innerHTML = `<b>${sc.label} (${sc.unit}) <span id="arr"></span></b>` + sc.classes.slice().reverse().map(c =>
     `<div><i style="background:rgb(${c.rgb.join(',')})"></i>${c.a.toFixed(sc.dec)} – ${c.b.toFixed(sc.dec)}</div>`).join('');
+  setArrow();
   vals = null;
   loadIso();
   const img = new Image();
@@ -79,6 +107,8 @@ function setMode(m) {
   img.src = m + '_val.png?' + meta.generated;
   info();
 }
+
+function setArrow() { const a = document.getElementById('arr'); if (a) a.textContent = legCollapsed ? '▸' : '▾'; }
 
 function loadIso() {
   if (isoLayer) { map.removeLayer(isoLayer); isoLayer = null; }
@@ -109,6 +139,7 @@ function info() {
       h += `<br>Indice d’inversion : <b>${meta.inversion}</b> en moyenne, de ${meta.inversion_lo} à ${meta.inversion_hi} selon les secteurs (0 = aucune, 1 = nuit calme et claire)`;
       if (meta.wind !== null) h += `<br>Vent nocturne moyen sur le département ${meta.wind} m/s, nébulosité ${meta.cloud} %`;
       h += `<br>Structure fine d’après une thermographie ECOSTRESS du ${meta.ecostress}.`;
+      if (meta.mistral_max >= 0.1) h += `<br>Correction « mistral » près du Rhône (biais connu d’ICON) : jusqu’à <b>+${meta.mistral_max} K</b>.`;
     } else {
       h += '<br>Valeurs du modèle corrigées du relief.';
     }
@@ -147,6 +178,11 @@ map.on('click', e => {            // tactile : pas de survol, on affiche la vale
   L.popup().setLatLng(e.latlng).setContent(v === null ? 'Hors zone' : `<b>${txt(v)}</b>`).openOn(map);
 });
 
+const panel = document.querySelector('.panel');
+if (small) panel.classList.add('min');
+const syncTg = () => $('tg').textContent = panel.classList.contains('min') ? 'Détails' : 'Masquer';
+$('tg').onclick = () => { panel.classList.toggle('min'); syncTg(); };
+syncTg();
 $('op').oninput = () => overlay && overlay.setOpacity(+$('op').value);
 $('iso').onchange = () => meta && loadIso();
 ['tn', 'tx', 'gust'].forEach(k => $('b-' + k).onclick = () => meta && setMode(k));
