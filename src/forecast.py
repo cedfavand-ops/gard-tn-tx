@@ -75,8 +75,11 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
     obs = np.isfinite(hp)
     w_obs = np.clip(gaussian_filter(obs.astype(np.float32), 4) * 1.2, 0, 1)   # fondu aux bords
     w = inv * w_obs
-    tn_rad = tn_m + C.AMP_LST_TO_AIR * np.nan_to_num(hp)
-    tn = (1 - w) * tn_plain + w * tn_rad
+    # relief « creux / replat » à l'échelle de ~1 km : terme physique de nuit radiative, indépendant d'ECOSTRESS
+    dz_inv = np.clip(dem - gaussian_filter(dem, C.INV_ZM_SIGMA_M / grid.res), -C.DZ_INV_MAX_M, C.DZ_INV_MAX_M)
+    # nuit radiative : structure ECOSTRESS (là où elle existe) + gradient de creux ; sinon correction d'altitude classique
+    tn_rad = tn_m + C.AMP_LST_TO_AIR * w_obs * np.nan_to_num(hp) + C.INV_DZ_GAIN * dz_inv
+    tn = (1 - inv) * tn_plain + inv * tn_rad
     mis_s = mistral_weight(wind_f, mask, grid)
     mis_corr = C.MISTRAL_BIAS_K * mis_s
     tn = tn + mis_corr
@@ -95,7 +98,7 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
                 mistral_max=float(np.nanmax(mis_corr[mask])), tn_end=tn_end, tn_truncated=bool(tn_trunc),
                 tx_end=tx_end, tx_truncated=bool(tx_trunc),
                 ecostress_cover=float(np.mean(obs[mask])),
-                fields=dict(tn_model=tn_m, tn_plain=tn_plain, tn_rad=tn_rad, w=w, tx_model=tx_m, dz=dz, hp=hp,
+                fields=dict(tn_model=tn_m, tn_plain=tn_plain, tn_rad=tn_rad, w=w, w_obs=w_obs, dz_inv=dz_inv, tx_model=tx_m, dz=dz, hp=hp,
                             inv=inv, wind_night=wind_f, cloud_night=cloud_f,
                             tn_night_model=tn_night_m, tn_hour=tn_hour, mistral_s=mis_s, mistral_corr=mis_corr))
     return tn, tx, info
