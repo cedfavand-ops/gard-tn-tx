@@ -50,7 +50,10 @@ def main():
         except Exception as e:
             print(f"[{name.upper()}] calcul impossible : {e!r}", flush=True)
     write_all(a.out, grid, tn, tx, mask, icon, info, D, gust, ginfo, rain, rinfo, clouds)
-    record_forecast(D, icon, grid, tn, tx, info, dem, demo=a.demo)
+    try:
+        record_forecast(D, icon, grid, tn, tx, info, dem, demo=a.demo)
+    except Exception as e:                       # l'archivage ne doit jamais empêcher la publication des cartes
+        print(f"[ARCHIVE] échec, cartes publiées quand même : {e!r}", flush=True)
     shutil.copy("web/index.html", f"{a.out}/index.html")
     print(f"OK run={icon.run:%Y-%m-%d %H}Z inversion={info['inversion']:.2f} "
           f"Tn[{tn[mask].min():.1f},{tn[mask].max():.1f}] Tx[{tx[mask].min():.1f},{tx[mask].max():.1f}] "
