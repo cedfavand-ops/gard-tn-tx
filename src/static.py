@@ -133,11 +133,13 @@ def demo_dem_mask(grid):
 
 
 def get_static(grid, demo=False):
+    """MNT et masque : mis en cache (lourds à récupérer). La structure ECOSTRESS est recalculée à chaque exécution
+    (quelques secondes) : on peut donc modifier HP_SIGMA_M / HP_CLIP sans invalider le cache."""
     path = f"data/static_{grid.res}{'_demo' if demo else ''}.npz"
     if os.path.exists(path):
         d = np.load(path)
-        return d["dem"], d["mask"], d["hp"]
-    dem, mask = demo_dem_mask(grid) if demo else (load_dem(grid), department_mask(grid))
-    hp = ecostress_highpass(grid, mask)
-    np.savez_compressed(path, dem=dem, mask=mask, hp=hp)
-    return dem, mask, hp
+        dem, mask = d["dem"], d["mask"]
+    else:
+        dem, mask = demo_dem_mask(grid) if demo else (load_dem(grid), department_mask(grid))
+        np.savez_compressed(path, dem=dem, mask=mask)
+    return dem, mask, ecostress_highpass(grid, mask)

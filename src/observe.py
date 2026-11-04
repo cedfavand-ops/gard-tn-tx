@@ -17,6 +17,7 @@ DEPT = "30"
 BASE = "https://object.files.data.gouv.fr/meteofrance/data/synchro_ftp/BASE/HOR/"
 DATASET = "https://www.data.gouv.fr/api/1/datasets/donnees-climatologiques-de-base-horaires/"
 OBS = "data/history/observations.csv"
+MANUAL = "data/obs_manual.csv"      # colonnes : jour, id, tn_obs, tx_obs [, gust_obs, rain_obs] ; jour = jour OBSERVÉ (matin pour Tn, après-midi pour Tx)
 
 
 def find_url(now):
@@ -111,6 +112,24 @@ def day_obs(df, D):
     return pd.DataFrame(out)
 
 
+def merge_manual(obs):
+    """Ajoute les observations saisies à la main (data/obs_manual.csv). `jour` = jour observé : la prévision
+    correspondante a été émise la veille, donc date = jour - 1."""
+    if not os.path.exists(MANUAL):
+        return obs
+    m = pd.read_csv(MANUAL, dtype={"id": str}, comment="#")
+    if m.empty or "jour" not in m.columns:
+        return obs
+    m["date"] = (pd.to_datetime(m["jour"]) - pd.Timedelta(days=1)).dt.strftime("%Y-%m-%d")
+    m["source"] = "manual"
+    m = m.drop(columns=["jour"])
+    if len(obs):
+        key = set(zip(m.date, m.id))
+        obs = obs[[(d, i) not in key for d, i in zip(obs.date, obs.id)]]
+    print(f"[OBS] {len(m)} observations manuelles intégrées", flush=True)
+    return pd.concat([obs, m], ignore_index=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--file", default=None, help="fichier horaire local (tests)")
@@ -127,16 +146,20 @@ def main():
     D0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
     dates |= {(D0 - timedelta(days=k)).strftime("%Y-%m-%d") for k in range(2, a.backfill + 2)}
     old = pd.read_csv(OBS, dtype={"id": str}) if os.path.exists(OBS) else pd.DataFrame()
-    done = set(old.date) if len(old) else set()
+    done = set(old[old["source"] != "manual"].date) if len(old) and "source" in old.columns else (set(old.date) if len(old) else set())
     new = []
     for d in sorted(dates - done):
         D = datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         r = day_obs(df, D)
         if len(r):
             new.append(r); print(f"[OBS] {d} : {len(r)} stations", flush=True)
-    if new:
+    allobs = pd.concat([old] + new, ignore_index=True) if new else old
+    if len(allobs) and "source" not in allobs.columns:
+        allobs["source"] = "mf"
+    allobs = merge_manual(allobs)
+    if len(allobs):
         os.makedirs(os.path.dirname(OBS), exist_ok=True)
-        pd.concat([old] + new, ignore_index=True).sort_values(["date", "id"]).to_csv(OBS, index=False)
+        allobs.sort_values(["date", "id"]).to_csv(OBS, index=False)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 STATIONS = "data/stations_gard.csv"
+EXTRA = "data/stations_extra.csv"      # stations hors Météo-France (observations saisies à la main)
 FORECASTS = "data/history/forecasts.csv"
 
 
@@ -28,6 +29,9 @@ def record_forecast(D, icon, grid, tn, tx, info, dem, demo=False, stations_path=
         print("[ARCHIVE] pas de liste de stations : archivage ignoré", flush=True)
         return
     st = pd.read_csv(stations_path, dtype={"id": str})
+    if os.path.exists(EXTRA):
+        ex = pd.read_csv(EXTRA, dtype={"id": str})
+        st = pd.concat([st, ex[~ex.id.isin(st.id)]], ignore_index=True)
     iy, ix = _px(grid, st.lat.values, st.lon.values)
     F = info["fields"]
     rows = pd.DataFrame({
@@ -37,6 +41,8 @@ def record_forecast(D, icon, grid, tn, tx, info, dem, demo=False, stations_path=
         "dz": F["dz"][iy, ix].round(1),                     # écart au relief « vu » par le modèle
         "hp": F["hp"][iy, ix].round(2),                      # anomalie ECOSTRESS au pixel (NaN si non observé)
         "w_blend": F["w"][iy, ix].round(2),
+        "w_obs": F["w_obs"][iy, ix].round(2),                         # couverture ECOSTRESS au pixel (0..1)
+        "dz_inv": F["dz_inv"][iy, ix].round(1),                       # creux (<0) ou replat (>0) à ~1 km, en m
         "tn": tn[iy, ix].round(2), "tn3": _mean3(tn, iy, ix).round(2),
         "tn_model": F["tn_model"][iy, ix].round(2), "tn_plain": F["tn_plain"][iy, ix].round(2),
         "tn_rad": F["tn_rad"][iy, ix].round(2),

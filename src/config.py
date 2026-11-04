@@ -13,9 +13,9 @@ NIGHT_WINDOW = (20, 29) # J 20:00 -> J+1 05:00 : heures utilisées pour l'indice
 ZM_SIGMA_M = 600        # lissage du MNT pour approcher l'orographie du modèle (~1 km)
 LAPSE_TN = -0.0065      # K/m, correction d'altitude hors nuit radiative
 LAPSE_TX = -0.0070      # K/m, correction d'altitude de jour
-HP_SIGMA_M = 1500       # filtre passe-haut de la LST ECOSTRESS (échelle sous-maille du modèle)
-AMP_LST_TO_AIR = 0.6    # LST (surface) -> anomalie de T de l'air. À CALIBRER avec des stations.
-HP_CLIP = 6.0           # K, écrête les anomalies aberrantes
+HP_SIGMA_M = 2500       # filtre passe-haut de la LST ECOSTRESS (échelle sous-maille du modèle)
+AMP_LST_TO_AIR = 0.8    # LST (surface) -> anomalie de T de l'air. À CALIBRER avec des stations.
+HP_CLIP = 8.0           # K, écrête les anomalies aberrantes
 
 # --- Indice d'inversion (0 = aucune, 1 = nuit calme et claire)
 CLOUD_FULL, CLOUD_ZERO = 20.0, 80.0   # % : <=20 % -> 1 ; >=80 % -> 0
@@ -104,3 +104,10 @@ RAIN_ISO_MAJOR = [1, 10, 50]
 
 # --- Nuages : heures locales (Paris) de demain ; rouge = nuages bas, vert = moyens, bleu = élevés
 CLOUD_HOURS_LOCAL = (9, 12, 15)
+
+# --- Cuvettes froides : en nuit radiative, l'air est plus froid dans les creux (et plus doux sur les replats surélevés)
+# Terme ajouté (au prorata de l'indice d'inversion) : INV_DZ_GAIN [K/m] x (altitude - altitude lissée sur INV_ZM_SIGMA_M), bornée à +/- DZ_INV_MAX_M.
+INV_ZM_SIGMA_M = 1000.0       # échelle (m) du « creux » : un trou de 60 m de profondeur sur ~1 km donne dz_inv = -60 m
+INV_DZ_GAIN = 0.04            # K par mètre : 60 m de creux -> -2,4 K. 0 = désactivé. Calibré ensuite sur les stations.
+DZ_INV_MAX_M = 100.0
+CAL_BOUNDS["INV_DZ_GAIN"] = (0.0, 0.15)
