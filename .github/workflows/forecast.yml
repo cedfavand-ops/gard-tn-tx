@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false   # ne jamais annuler un déploiement Pages en cours (cause d'échecs « Deployment failed »)
 
 jobs:
   build:
@@ -44,6 +44,9 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
         run: python -u -m src.observe
+      - name: Assimilation des écarts récents des stations (appliquée seulement si AUTO_ASSIMILATION = True)
+        continue-on-error: true
+        run: python -u -m src.assim
       - name: Calcul des cartes
         env:
           TQDM_DISABLE: "1"
