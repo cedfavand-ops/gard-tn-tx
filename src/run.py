@@ -9,6 +9,7 @@ from .forecast import compute
 from .render import write_all
 from .archive import record_forecast
 from . import calibration
+from .communes import write_communes
 from .wind import sx_stack, compute_gust
 from .extra import compute_rain, compute_clouds
 
@@ -55,6 +56,10 @@ def main():
     except Exception as e:                       # l'archivage ne doit jamais empêcher la publication des cartes
         print(f"[ARCHIVE] échec, cartes publiées quand même : {e!r}", flush=True)
     shutil.copy("web/index.html", f"{a.out}/index.html")
+    try:
+        write_communes(a.out)
+    except Exception as e:                       # les noms de communes ne doivent jamais bloquer la publication
+        print(f"[COMMUNES] échec : {e!r}", flush=True)
     print(f"OK run={icon.run:%Y-%m-%d %H}Z inversion={info['inversion']:.2f} "
           f"Tn[{tn[mask].min():.1f},{tn[mask].max():.1f}] Tx[{tx[mask].min():.1f},{tx[mask].max():.1f}] "
           f"ECOSTRESS={info['ecostress_cover']:.0%}")

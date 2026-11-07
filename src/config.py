@@ -129,3 +129,6 @@ ASSIM_MIN_EFF = 1.5         # nuits efficaces minimales (par régime) avant de c
 ASSIM_HALF_LIFE_DAYS = 60.0 # les nuits récentes pèsent davantage
 ASSIM_GAIN = 1.0
 ASSIM_MAX_K = 5.0           # correction maximale (K)
+
+# --- Noms de communes affichés sur la carte
+COMMUNES_N = 20     # nombre de communes (les plus peuplées du département)
