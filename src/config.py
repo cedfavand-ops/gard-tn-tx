@@ -14,7 +14,7 @@ ZM_SIGMA_M = 600        # lissage du MNT pour approcher l'orographie du modèle 
 LAPSE_TN = -0.0065      # K/m, correction d'altitude hors nuit radiative
 LAPSE_TX = -0.0070      # K/m, correction d'altitude de jour
 HP_SIGMA_M = 2500       # filtre passe-haut de la LST ECOSTRESS (échelle sous-maille du modèle)
-AMP_LST_TO_AIR = 0.8    # LST (surface) -> anomalie de T de l'air. À CALIBRER avec des stations.
+AMP_LST_TO_AIR = 1.0    # LST (surface) -> anomalie de T de l'air. À CALIBRER avec des stations.
 HP_CLIP = 8.0           # K, écrête les anomalies aberrantes
 
 # --- Indice d'inversion (0 = aucune, 1 = nuit calme et claire)
@@ -105,8 +105,14 @@ RAIN_ISO_MAJOR = [1, 10, 50]
 # --- Nuages : heures locales (Paris) de demain ; rouge = nuages bas, vert = moyens, bleu = élevés
 CLOUD_HOURS_LOCAL = (9, 12, 15)
 
+# --- Amplitude ECOSTRESS selon l'altitude : cuvettes fermées de basse altitude (La Lèque) -> signal fort ;
+# vallées cévenoles pentues, où l'air froid s'écoule -> signal fortement atténué. AMP_LST_TO_AIR = amplitude en basse altitude.
+AMP_HIGH_ALT = 0.3
+AMP_ALT_RANGE = (250.0, 600.0)     # m : amplitude basse jusqu'à 250 m, haute à partir de 600 m, linéaire entre les deux
+CAL_BOUNDS["AMP_HIGH_ALT"] = (0.0, 1.2)
+
 # --- Cuvettes froides : en nuit radiative, l'air est plus froid dans les creux (et plus doux sur les replats surélevés)
-# Terme ajouté (au prorata de l'indice d'inversion) : INV_DZ_GAIN [K/m] x (altitude - altitude lissée sur INV_ZM_SIGMA_M), bornée à +/- DZ_INV_MAX_M.
+# Terme ajouté (au prorata de l'indice d'inversion ET seulement là où ECOSTRESS n'a pas de donnée, pour ne pas compter deux fois) : INV_DZ_GAIN [K/m] x (altitude - altitude lissée sur INV_ZM_SIGMA_M), bornée à +/- DZ_INV_MAX_M.
 INV_ZM_SIGMA_M = 1000.0       # échelle (m) du « creux » : un trou de 60 m de profondeur sur ~1 km donne dz_inv = -60 m
 INV_DZ_GAIN = 0.04            # K par mètre : 60 m de creux -> -2,4 K. 0 = désactivé. Calibré ensuite sur les stations.
 DZ_INV_MAX_M = 100.0

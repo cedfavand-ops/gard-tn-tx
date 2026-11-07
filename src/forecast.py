@@ -78,7 +78,11 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
     # relief « creux / replat » à l'échelle de ~1 km : terme physique de nuit radiative, indépendant d'ECOSTRESS
     dz_inv = np.clip(dem - gaussian_filter(dem, C.INV_ZM_SIGMA_M / grid.res), -C.DZ_INV_MAX_M, C.DZ_INV_MAX_M)
     # nuit radiative : structure ECOSTRESS (là où elle existe) + gradient de creux ; sinon correction d'altitude classique
-    tn_rad = tn_m + C.AMP_LST_TO_AIR * w_obs * np.nan_to_num(hp) + C.INV_DZ_GAIN * dz_inv
+    a0, a1 = C.AMP_ALT_RANGE
+    f_alt = np.clip((dem - a0) / (a1 - a0), 0, 1)
+    amp = C.AMP_LST_TO_AIR * (1 - f_alt) + C.AMP_HIGH_ALT * f_alt
+    # le terme « creux » ne s'applique que là où ECOSTRESS manque : sinon il double le signal déjà mesuré
+    tn_rad = tn_m + amp * w_obs * np.nan_to_num(hp) + (1 - w_obs) * C.INV_DZ_GAIN * dz_inv
     tn = (1 - inv) * tn_plain + inv * tn_rad
     mis_s = mistral_weight(wind_f, mask, grid)
     mis_corr = C.MISTRAL_BIAS_K * mis_s

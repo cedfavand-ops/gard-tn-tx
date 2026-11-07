@@ -3,7 +3,7 @@
 python -m src.calibration [--res 150]   -> écrit data/history/calibration.json (+ journal)
 
 Principe : la carte publiée est une combinaison linéaire de champs archivés, donc l'erreur s'écrit
-    obs - tn_model = (1-inv)*dz*LAPSE_TN + inv*w_obs*hp*AMP + inv*dz_inv*INV_DZ_GAIN + s*MISTRAL_BIAS_K   (Tn)
+    obs - tn_model = (1-inv)*dz*LAPSE_TN + inv*w_obs*hp*AMP(alt) + inv*(1-w_obs)*dz_inv*INV_DZ_GAIN + s*MISTRAL_BIAS_K   (Tn)
     obs - tx_model = dz*LAPSE_TX                          (Tx)
 Régression ridge ramenée vers les valeurs de config.py (équivalent de CAL_MIN_N observations « a priori »),
 bornes de sécurité, et validation sur les jours les plus récents mis de côté.
@@ -83,22 +83,25 @@ def load_pairs(res):
 def fit(m):
     out = {}
     params = {"AMP_LST_TO_AIR": C.AMP_LST_TO_AIR, "LAPSE_TN": C.LAPSE_TN, "LAPSE_TX": C.LAPSE_TX,
-              "MISTRAL_BIAS_K": C.MISTRAL_BIAS_K, "INV_DZ_GAIN": C.INV_DZ_GAIN}
+              "MISTRAL_BIAS_K": C.MISTRAL_BIAS_K, "INV_DZ_GAIN": C.INV_DZ_GAIN, "AMP_HIGH_ALT": C.AMP_HIGH_ALT}
     # --- Tn : on ignore les écarts aberrants (> 8 K) et les fenêtres tronquées
     for col in ("mistral_s", "w_obs", "dz_inv", "inversion"):
         if col not in m.columns:
             m = m.assign(**{col: np.nan})                   # archives antérieures aux corrections : écartées de l'ajustement Tn
-    d = m.dropna(subset=["tn_obs", "tn_model", "dz", "mistral_s", "w_obs", "dz_inv", "inversion"]).copy()
+    d = m.dropna(subset=["tn_obs", "tn_model", "dz", "mistral_s", "w_obs", "dz_inv", "inversion", "dem_pix"]).copy()
     d = d[(~d.tn_truncated.astype(bool)) & ((d.tn_obs - d.tn_model).abs() < 8)].reset_index(drop=True)
     if len(d):
         inv = d.inversion.values; w_obs = d.w_obs.values; hp = d.hp.fillna(0).values; dz = d.dz.values
-        X = np.column_stack([(1 - inv) * dz, inv * w_obs * hp, inv * d.dz_inv.values, d.mistral_s.values])
+        a0, a1 = C.AMP_ALT_RANGE
+        f_alt = np.clip((d.dem_pix.values - a0) / (a1 - a0), 0, 1)
+        X = np.column_stack([(1 - inv) * dz, inv * w_obs * hp * (1 - f_alt), inv * w_obs * hp * f_alt,
+                             inv * (1 - w_obs) * d.dz_inv.values, d.mistral_s.values])
         r = (d.tn_obs - d.tn_model).values
-        names = ["LAPSE_TN", "AMP_LST_TO_AIR", "INV_DZ_GAIN", "MISTRAL_BIAS_K"]
-        b, info = _calibrate(list(d.date), X, r, names, [C.LAPSE_TN, C.AMP_LST_TO_AIR, C.INV_DZ_GAIN, C.MISTRAL_BIAS_K])
+        names = ["LAPSE_TN", "AMP_LST_TO_AIR", "AMP_HIGH_ALT", "INV_DZ_GAIN", "MISTRAL_BIAS_K"]
+        b, info = _calibrate(list(d.date), X, r, names, [C.LAPSE_TN, C.AMP_LST_TO_AIR, C.AMP_HIGH_ALT, C.INV_DZ_GAIN, C.MISTRAL_BIAS_K])
         w = inv * w_obs
         info["cas_ecostress"] = int((w > 0.3).sum()); info["cas_mistral"] = int((d.mistral_s > 0.3).sum())
-        params["LAPSE_TN"], params["AMP_LST_TO_AIR"], params["INV_DZ_GAIN"], params["MISTRAL_BIAS_K"] = (float(x) for x in b)
+        params["LAPSE_TN"], params["AMP_LST_TO_AIR"], params["AMP_HIGH_ALT"], params["INV_DZ_GAIN"], params["MISTRAL_BIAS_K"] = (float(x) for x in b)
         out["tn"] = info
     # --- Tx
     d = m.dropna(subset=["tx_obs", "tx_model", "dz"]).copy()
