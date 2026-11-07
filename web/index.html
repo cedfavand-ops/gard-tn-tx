@@ -170,6 +170,7 @@ function info() {
       h += `<br>Indice d’inversion : <b>${meta.inversion}</b> en moyenne, de ${meta.inversion_lo} à ${meta.inversion_hi} selon les secteurs (0 = aucune, 1 = nuit calme et claire)`;
       if (meta.wind !== null) h += `<br>Vent nocturne moyen sur le département ${meta.wind} m/s, nébulosité ${meta.cloud} %`;
       h += `<br>Structure fine d’après une thermographie ECOSTRESS du ${meta.ecostress}.`;
+      if (meta.assim && (Math.abs(meta.assim[0]) >= 0.1 || Math.abs(meta.assim[1]) >= 0.1)) h += `<br>Écarts récents des stations pris en compte : de ${meta.assim[0]} à +${meta.assim[1]} K.`;
       if (meta.mistral_max >= 0.1) h += `<br>Correction « mistral » près du Rhône (biais connu d’ICON) : jusqu’à <b>+${meta.mistral_max} K</b>.`;
     } else {
       h += '<br>Valeurs du modèle corrigées du relief.';
