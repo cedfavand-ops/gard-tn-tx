@@ -22,6 +22,10 @@
   #tip{position:absolute;z-index:1100;pointer-events:none;display:none;background:rgba(20,20,20,.88);color:#fff;
        padding:3px 8px;border-radius:5px;font-size:13px;white-space:nowrap}
   .chk{display:block;margin:6px 0}
+  .commune-label{background:transparent;border:0;box-shadow:none;padding:0 2px;font-weight:700;font-size:11px;color:#111;
+                 text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff,0 0 2px #fff;pointer-events:none}
+  .commune-label.big{font-size:13px}
+  .commune-label:before{display:none}
   .leg{background:#fff;padding:6px 9px;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.3);font-size:11px;line-height:14px;color:#222;max-width:190px}
   .leg div{display:flex;align-items:center;gap:6px}
   .leg i{display:inline-block;width:20px;height:12px;flex:none}
@@ -59,6 +63,7 @@
   <div id="more">
     <label>Opacité des couleurs<input id="op" type="range" min="0" max="1" step="0.05" value="0.8"></label>
     <label class="chk"><input type="checkbox" id="iso" checked> Isolignes (fines / épaisses)</label>
+    <label class="chk"><input type="checkbox" id="cm" checked> Noms des communes</label>
     <div class="small" id="info">Chargement…</div>
     <div class="small">Survolez la carte (ou touchez-la) pour lire la valeur.</div>
   </div>
@@ -72,6 +77,19 @@ const ign = L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile
   {attribution: '© <a href="https://geoservices.ign.fr">IGN</a>', maxZoom: 18});
 osm.addTo(map);
 L.control.layers({'OpenStreetMap': osm, 'Plan IGN': ign}, null, {position: 'topright'}).addTo(map);
+
+map.createPane('communes');
+map.getPane('communes').style.zIndex = 650;            // au-dessus des couleurs et des isolignes
+map.getPane('communes').style.pointerEvents = 'none';  // ne gêne pas la lecture des valeurs au survol
+const communes = L.layerGroup();
+fetch('communes.json?' + Date.now()).then(r => r.json()).then(list => {
+  list.forEach((c, i) => {
+    L.circleMarker([c.lat, c.lon], {pane: 'communes', radius: i < 3 ? 4 : 3, weight: 1.5, color: '#111', fillColor: '#fff', fillOpacity: 1, interactive: false})
+      .bindTooltip(c.n, {pane: 'communes', permanent: true, direction: 'right', offset: [4, 0], className: 'commune-label' + (i < 3 ? ' big' : ''), interactive: false})
+      .addTo(communes);
+  });
+  if (document.getElementById('cm').checked) communes.addTo(map);
+}).catch(() => {});
 
 const small = window.matchMedia('(max-width:600px)').matches;
 let legCollapsed = small;
@@ -228,6 +246,7 @@ $('tg').onclick = () => { panel.classList.toggle('min'); syncTg(); };
 syncTg();
 $('op').oninput = () => overlay && overlay.setOpacity(+$('op').value);
 $('iso').onchange = () => meta && loadIso();
+$('cm').onchange = () => $('cm').checked ? communes.addTo(map) : map.removeLayer(communes);
 MODES.forEach(k => $('b-' + k).onclick = () => meta && setMode(k));
 
 fetch('meta.json?' + Date.now()).then(r => r.json()).then(m => {
