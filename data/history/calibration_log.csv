@@ -1,0 +1,2 @@
+date,n_days,AMP_LST_TO_AIR,LAPSE_TN,LAPSE_TX,MISTRAL_BIAS_K,INV_DZ_GAIN,AMP_HIGH_ALT,tn_status,tx_status
+2026-11-07T11:04Z,1,1.0,-0.0065,-0.007,1.25,0.04,0.3,insuffisant,

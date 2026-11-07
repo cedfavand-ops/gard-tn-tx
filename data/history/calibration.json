@@ -1,0 +1,22 @@
+{
+ "updated": "2026-11-07T11:04Z",
+ "res": 150,
+ "n_days": 1,
+ "params": {
+  "AMP_LST_TO_AIR": 1.0,
+  "LAPSE_TN": -0.0065,
+  "LAPSE_TX": -0.007,
+  "MISTRAL_BIAS_K": 1.25,
+  "INV_DZ_GAIN": 0.04,
+  "AMP_HIGH_ALT": 0.3
+ },
+ "tn": {
+  "status": "insuffisant",
+  "n": 1,
+  "mae_old": null,
+  "mae_new": null,
+  "cas_ecostress": 1,
+  "cas_mistral": 0
+ },
+ "applied_to_maps": false
+}
