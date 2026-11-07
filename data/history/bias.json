@@ -1,0 +1,25 @@
+{
+ "updated": "2026-11-07T15:57Z",
+ "res": 150,
+ "status": "insuffisant",
+ "applied_to_maps": false,
+ "validation": {
+  "status": "insuffisant",
+  "n_days": 1
+ },
+ "stations": [
+  {
+   "id": "LEQUE",
+   "name": "LA LEQUE",
+   "lat": 44.18740444571116,
+   "lon": 4.358168632000478,
+   "dem_pix": 253.1999969482422,
+   "dz_inv": -26.200000762939453,
+   "n_nights": 1,
+   "b_rad": 0.0,
+   "b_non": 0.0,
+   "n_rad": 0.94,
+   "n_non": 0.06
+  }
+ ]
+}
