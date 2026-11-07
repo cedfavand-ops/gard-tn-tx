@@ -87,6 +87,8 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
     mis_s = mistral_weight(wind_f, mask, grid)
     mis_corr = C.MISTRAL_BIAS_K * mis_s
     tn = tn + mis_corr
+    from . import assim                              # écarts récents des stations (inactif par défaut)
+    tn, assim_delta = assim.apply(tn, inv, dem, dz_inv, grid, mask)
 
     # --- Tx (pas d'ECOSTRESS : valeurs du modèle corrigées du relief)
     tx_pts, tx_end, tx_trunc = window_stat(icon, D, C.TX_WINDOW, np.max)
@@ -99,10 +101,12 @@ def compute(icon, dem, mask, hp, grid, D, force_inversion=None):
     info = dict(inversion=float(np.mean(iv)), inversion_lo=float(np.percentile(iv, 10)),
                 inversion_hi=float(np.percentile(iv, 90)),
                 wind=float(np.nanmean(wind_f[mask])), cloud=float(np.nanmean(cloud_f[mask])),
-                mistral_max=float(np.nanmax(mis_corr[mask])), tn_end=tn_end, tn_truncated=bool(tn_trunc),
+                mistral_max=float(np.nanmax(mis_corr[mask])),
+                assim_range=None if assim_delta is None else [float(assim_delta[mask].min()), float(assim_delta[mask].max())], tn_end=tn_end, tn_truncated=bool(tn_trunc),
                 tx_end=tx_end, tx_truncated=bool(tx_trunc),
                 ecostress_cover=float(np.mean(obs[mask])),
                 fields=dict(tn_model=tn_m, tn_plain=tn_plain, tn_rad=tn_rad, w=w, w_obs=w_obs, dz_inv=dz_inv, tx_model=tx_m, dz=dz, hp=hp,
                             inv=inv, wind_night=wind_f, cloud_night=cloud_f,
-                            tn_night_model=tn_night_m, tn_hour=tn_hour, mistral_s=mis_s, mistral_corr=mis_corr))
+                            tn_night_model=tn_night_m, tn_hour=tn_hour, mistral_s=mis_s, mistral_corr=mis_corr,
+                            assim=assim_delta if assim_delta is not None else np.zeros_like(tn)))
     return tn, tx, info

@@ -56,6 +56,7 @@ def record_forecast(D, icon, grid, tn, tx, info, dem, demo=False, stations_path=
         "tn": tn[iy, ix].round(2), "tn3": _mean3(tn, iy, ix).round(2),
         "tn_model": F["tn_model"][iy, ix].round(2), "tn_plain": F["tn_plain"][iy, ix].round(2),
         "tn_rad": F["tn_rad"][iy, ix].round(2),
+        "assim": F["assim"][iy, ix].round(2),                         # correction par assimilation des écarts stations (K)
         "mistral_s": F["mistral_s"][iy, ix].round(3),                # poids mistral (vent fort x proximité du Rhône)
         "mistral_corr": F["mistral_corr"][iy, ix].round(2),          # correction ajoutée à la Tn (K)
         "tn_night_model": F["tn_night_model"][iy, ix].round(2),   # min ICON 21-07 UTC (diagnostic de fenêtre)

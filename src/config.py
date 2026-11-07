@@ -117,3 +117,15 @@ INV_ZM_SIGMA_M = 1000.0       # échelle (m) du « creux » : un trou de 60 m de
 INV_DZ_GAIN = 0.04            # K par mètre : 60 m de creux -> -2,4 K. 0 = désactivé. Calibré ensuite sur les stations.
 DZ_INV_MAX_M = 100.0
 CAL_BOUNDS["INV_DZ_GAIN"] = (0.0, 0.15)
+
+# --- Assimilation des écarts récents des stations (src/assim.py)
+AUTO_ASSIMILATION = False   # False = calculée et enregistrée (data/history/bias.json) mais NON appliquée aux cartes
+ASSIM_RADIUS_KM = 8.0       # portée spatiale d'un écart de station
+ASSIM_DZ_SCALE_M = 25.0     # tolérance sur la profondeur de creux (dz_inv) : un creux ne « déteint » que sur des creux semblables
+ASSIM_ALT_SCALE_M = 150.0   # tolérance sur l'altitude
+ASSIM_BG_WEIGHT = 0.15      # poids du « fond » : la correction décroît vers 0 loin des stations
+ASSIM_N0 = 3.0              # nuits « a priori » à 0 K : plus il y a de nuits observées, plus l'écart de la station compte
+ASSIM_MIN_EFF = 1.5         # nuits efficaces minimales (par régime) avant de corriger une station
+ASSIM_HALF_LIFE_DAYS = 60.0 # les nuits récentes pèsent davantage
+ASSIM_GAIN = 1.0
+ASSIM_MAX_K = 5.0           # correction maximale (K)
