@@ -1,34 +1,34 @@
 {
- "updated": "2026-11-18T12:28Z",
+ "updated": "2026-11-19T16:52Z",
  "res": 150,
- "n_days": 17,
+ "n_days": 18,
  "params": {
-  "AMP_LST_TO_AIR": 0.73111,
+  "AMP_LST_TO_AIR": 0.73444,
   "LAPSE_TN": -0.003,
   "LAPSE_TX": -0.007,
-  "MISTRAL_BIAS_K": 1.0348,
-  "INV_DZ_GAIN": 0.07575,
+  "MISTRAL_BIAS_K": 1.03323,
+  "INV_DZ_GAIN": 0.07661,
   "AMP_HIGH_ALT": 1.2
  },
  "tn": {
   "status": "accepté",
-  "n": 313,
-  "mae_old": 1.159,
-  "mae_new": 1.11,
-  "n_train": 209,
+  "n": 339,
+  "mae_old": 1.149,
+  "mae_new": 1.086,
+  "n_train": 235,
   "n_test": 104,
-  "gain": 0.042,
+  "gain": 0.055,
   "cas_ecostress": 73,
   "cas_mistral": 9
  },
  "tx": {
   "status": "rejeté (pas d'amélioration sur les jours de validation)",
-  "n": 442,
-  "mae_old": 0.824,
-  "mae_new": 0.84,
-  "n_train": 286,
+  "n": 468,
+  "mae_old": 0.841,
+  "mae_new": 0.863,
+  "n_train": 312,
   "n_test": 156,
-  "gain": -0.019
+  "gain": -0.026
  },
  "applied_to_maps": false
 }
