@@ -25,3 +25,4 @@ date,n_days,AMP_LST_TO_AIR,LAPSE_TN,LAPSE_TX,MISTRAL_BIAS_K,INV_DZ_GAIN,AMP_HIGH
 2026-11-24T16:42Z,23,1.0,-0.0065,-0.007,1.25,0.04,0.3,rejeté (pas d'amélioration sur les jours de validation),rejeté (pas d'amélioration sur les jours de validation)
 2026-11-25T16:44Z,24,1.0,-0.0065,-0.007,1.25,0.04,0.3,rejeté (pas d'amélioration sur les jours de validation),rejeté (pas d'amélioration sur les jours de validation)
 2026-11-26T16:09Z,24,1.0,-0.0065,-0.007,1.25,0.04,0.3,rejeté (pas d'amélioration sur les jours de validation),rejeté (pas d'amélioration sur les jours de validation)
+2026-11-27T15:01Z,25,1.0,-0.0065,-0.007,1.25,0.04,0.3,rejeté (pas d'amélioration sur les jours de validation),rejeté (pas d'amélioration sur les jours de validation)
